@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import {createClient} from "@/lib/supabase/client";
 
 export default function AuthPage() {
     const [isSignup, setIsSignup] = useState<boolean>(false);
@@ -9,6 +10,38 @@ export default function AuthPage() {
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string>("");
 
+    const supabase = createClient()
+
+    async function handleAuth(e: React.FormEvent) {
+        e.preventDefault();
+
+        setLoading(true);
+        setError("")
+
+        try{
+            if(isSignup){
+                const {data, error} = await supabase.auth.signUp({email, password});
+
+                if (error) throw error;
+                if (data.user && !data.session){
+                    setError("Please confirm email");
+                    return;
+                }
+            }
+            else{
+                const {error} = await supabase.auth.signInWithPassword({email, password})
+                if (error) throw error;
+
+            }
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        catch (err: any) {
+            setError(err.message);
+        }
+        finally{
+            setLoading(false);
+        }
+    }
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-pink-100 to-red-100 dark:from-gray-900 dark:to-gray-800">
@@ -21,7 +54,7 @@ export default function AuthPage() {
                         {isSignup ? "Create your account" : "Sign in to your account"}
                     </p>
                 </div>
-                <form className="space-y-6">
+                <form className="space-y-6" onSubmit={handleAuth}>
                     <div>
                         <label
                             htmlFor="email"
@@ -57,7 +90,25 @@ export default function AuthPage() {
                             placeholder="Enter your password"
                         />
                     </div>
+                    {error && (
+                        <div className="text-red-600 dark:text-red-400 text-sm">
+                            {error}
+                        </div>)
+                    }
+                    <button type="submit" disabled={loading} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 disabled:opacity-50">
+                        {loading ? "Loading ..." : isSignup ? "Sign up" : "Login"}
+                    </button>
                 </form>
+                <div className="text-center">
+                    <button
+                        onClick={() => setIsSignup(!isSignup)}
+                        className="text-pink-600 dark:text-pink-400 hover:text-pink-500 dark:hover:text-pink-300 text-sm"
+                    >
+                        {isSignup
+                            ? "Already have an account? Sign in"
+                            : "Don't have an account? Sign up"}
+                    </button>
+                </div>
             </div>
         </div>
     );
