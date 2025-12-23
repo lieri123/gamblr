@@ -24,11 +24,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className = "h-full">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased h-full`}
       >
-        <AuthProvider>{children}</AuthProvider>
+      <AuthProvider>
+          <div className="h-full flex flex-col">
+              <Navbar />{children}
+          </div>
+      </AuthProvider>
 
       </body>
     </html>
