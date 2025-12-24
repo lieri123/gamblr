@@ -3,9 +3,9 @@
 // keeps track of current user and updates automatically when the auth state changes and signs user out
 "use client";
 import {createContext, useContext, useEffect, useState} from "react";
-import {User} from "@supabase/auth-js";
+import { User } from "@supabase/auth-js";
 import { useRouter } from "next/navigation";
-import {createClient} from "@/lib/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 
 interface AuthContextType{
     user: User | null;
