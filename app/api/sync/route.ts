@@ -34,7 +34,6 @@ export async function GET(req: Request) {
 
         for (const bet of bets) {
 
-            // 1️⃣ UPSERT BET
             const { error: betErr } = await supabase.from("bets").upsert({
                 id: bet.id,
                 sport_key: bet.sport_key,
@@ -46,11 +45,9 @@ export async function GET(req: Request) {
 
             if (betErr) throw betErr;
 
-            // 2️⃣ ONLY FIRST BOOKMAKER
             const bookmaker = bet.bookmakers?.[0];
             if (!bookmaker) continue;
 
-            // 3️⃣ LOOP MARKETS
             for (const market of bookmaker.markets ?? []) {
 
                 // 4️⃣ INSERT MARKET + RETURN ID
@@ -69,7 +66,6 @@ export async function GET(req: Request) {
 
                 const marketId = marketData.id;
 
-                // 5️⃣ INSERT OUTCOMES
                 const outcomes = (market.outcomes ?? []).map(o => ({
                     market_id: marketId,
                     name: o.name,
