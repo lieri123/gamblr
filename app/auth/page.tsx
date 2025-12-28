@@ -10,6 +10,7 @@ export default function AuthPage() {
     const [isSignup, setIsSignup] = useState<boolean>(false);
     const [email, setEmail] = useState<string>("");
     const [password, setPassword] = useState<string>("");
+    const [confirmpassword, setconfirmPassword] = useState<string>("");
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string>("");
 
@@ -30,18 +31,28 @@ export default function AuthPage() {
 
         try{
             if(isSignup){
+
+                if (password !== confirmpassword) {
+                    setError("Passwords do not match");
+                    setLoading(false);
+                    return;
+                }
+
                 const {data, error} = await supabase.auth.signUp({email, password});
 
                 if (error) throw error;
+
                 if (data.user && !data.session){
                     setError("Please confirm email");
                     return;
                 }
+
             }
             else{
                 const {error} = await supabase.auth.signInWithPassword({email, password})
                 if (error) throw error;
 
+                router.push("/");
             }
         }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -100,6 +111,22 @@ export default function AuthPage() {
                             placeholder="Enter your password"
                         />
                     </div>
+                    {isSignup && (
+                        <div>
+                            <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Confirm Password
+                            </label>
+                            <input
+                                id="confirm-password"
+                                type="password"
+                                required
+                                value={confirmpassword}
+                                onChange={(e) => setconfirmPassword(e.target.value)}
+                                className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-pink-500 focus:border-pink-500 dark:bg-gray-800 dark:text-white"
+                                placeholder="Confirm your password"
+                            />
+                        </div>
+                    )}
                     {error && (
                         <div className="text-red-600 dark:text-red-400 text-sm">
                             {error}

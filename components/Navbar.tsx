@@ -2,10 +2,15 @@
 
 import {useAuth} from "@/context/auth-context";
 
-
 import Link from "next/link";
+import {useState} from "react";
 
-export default function Navbar(){
+
+type NavbarProps = {
+    minimal?: boolean;
+};
+
+export default function Navbar({minimal = false}:NavbarProps){
     const { signOut, user } = useAuth();
 
     return(
@@ -18,65 +23,24 @@ export default function Navbar(){
                           Gamblr
                         </span>
                     </Link>
-                    {/* Only show navigation links if user is authenticated */}
-                    {user && (
-                        <div className="hidden md:flex items-center space-x-8">
-                            <Link
-                                href="/matches"
-                                className="text-gray-700 dark:text-gray-300 hover:text-pink-600 dark:hover:text-pink-400 font-medium transition-colors duration-200"
-                            >
-                                Discover
-                            </Link>
-                            <Link
-                                href="/matches/list"
-                                className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors duration-200"
-                            >
-                                Matches
-                            </Link>
-                            <Link
-                                href="/chat"
-                                className="text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 font-medium transition-colors duration-200"
-                            >
-                                Messages
-                            </Link>
-                            <Link
-                                href="/profile"
-                                className="text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 font-medium transition-colors duration-200"
-                            >
-                                Profile
-                            </Link>
-                        </div>
-                    )}
-
-                    {user ? (
-                        <button
-                            onClick={signOut}
-                            className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-medium rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 shadow-md hover:shadow-lg"
-                        >
-                            <svg
-                                className="w-4 h-4 mr-1"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                                />
-                            </svg>
-                            Sign Out
-                        </button>
-                    ) : (
+                    {!user && !minimal && (
                         <Link
                             href="/auth"
-                            className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-pink-500 to-red-500 text-white text-sm font-medium rounded-lg hover:from-pink-600 hover:to-red-600 transition-all duration-200 shadow-md hover:shadow-lg"
+                            className="px-4 py-2 rounded-lg bg-pink-500 text-white"
                         >
-                            Sign In
+                            Log in
                         </Link>
                     )}
+
+                    {/* Show sign out when logged in */}
+                    {user && !minimal && (
+                        <button onClick={signOut} className="px-4 py-2 rounded-lg bg-red-500 text-white">
+
+                            Sign Out
+                        </button>
+                    )}
                 </div>
+
             </div>
         </nav>
     );
