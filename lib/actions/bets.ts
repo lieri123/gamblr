@@ -10,6 +10,8 @@ export interface betProfile{
     home_team: string;
     away_team: string;
     commence_time: string;
+    home_odd: number;
+    away_odd: number;
 }
 export async function getPotentialBets(): Promise<betProfile[]> {
     const supabase = await createClient();
@@ -48,21 +50,45 @@ export async function getPotentialBets(): Promise<betProfile[]> {
         throw new Error("Failed to get user preferences");
     }
 
-    const currUserprefs = userPrefs.preferences as string [];
-    const filteredBets = potentialBets?.filter((bets) =>{
-        if(!currUserprefs || currUserprefs.length == 0){
-            return true;
-        }
+    const currUserprefs = userPrefs.preferences as string [] ?? [];
 
-        return currUserprefs.includes(bets.sport_title);
-    }).map((bets) => ({
-        id:bets.id,
-        sport_key:bets.sport_key,
-        sport_title:bets.sport_title,
-        home_team:bets.home_team,
-        away_team:bets.away_team,
-        commence_time:bets.commence_time,
-        })) || [];
+    const filteredBets = (potentialBets ?? []).filter(b =>
+        currUserprefs.length === 0 || currUserprefs.includes(b.sport_title)
+    );
+
+    const betIds = filteredBets.map(b => b.id);
+
+    const { data: markets } = await supabase
+        .from("bet_markets")
+        .select("id, bet_id")
+        .in("bet_id", betIds);
+
+    const marketIds = markets?.map(m => m.id) ?? [];
+
+    const { data: outcomes } = await supabase
+        .from("outcomes")
+        .select("market_id, value")
+        .in("market_id", marketIds);
+
+    const finalBets: betProfile[] = filteredBets.map(bet => {
+        const market = markets?.find(m => m.bet_id === bet.id);
+        const marketOutcomes = outcomes?.filter(
+            o => o.market_id === market?.id) ?? [];
+
+        const homeOutcome = marketOutcomes[1];
+        const awayOutcome = marketOutcomes[0];
+
+        return {
+            id: bet.id,
+            sport_key: bet.sport_key,
+            sport_title: bet.sport_title,
+            home_team: bet.home_team,
+            away_team: bet.away_team,
+            commence_time: bet.commence_time,
+            home_odd: homeOutcome?.value ?? 0,
+            away_odd: awayOutcome?.value ?? 0,
+        };
+    });
 
     return filteredBets;
 }
@@ -127,8 +153,9 @@ export async function getUserbets() {
             sport_title: otherbets.sport_title,
             home_team: otherbets.home_team,
             away_team: otherbets.away_team,
-            commence_time: otherbets.commence_time
-
+            commence_time: otherbets.commence_time,
+            home_odd: 0,
+            away_odd: 0
         });
     }
 
