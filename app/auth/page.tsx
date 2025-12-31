@@ -52,7 +52,7 @@ export default function AuthPage() {
                 const {error} = await supabase.auth.signInWithPassword({email, password})
                 if (error) throw error;
 
-                router.push("/");
+                router.push("/bets");
             }
         }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
