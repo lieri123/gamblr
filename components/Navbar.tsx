@@ -27,7 +27,7 @@ export default function Navbar({minimal = false}:NavbarProps){
 
                     {user && !minimal && (
                         <div className="flex items-center space-x-8 text-white">
-                            <Link href="/bets/personal" className="hover:text-pink-400 transition">For You</Link>
+                            <Link href="/bets/personalized" className="hover:text-pink-400 transition">For You</Link>
                             <Link href="/bets" className="hover:text-pink-400 transition">Discover</Link>
                             <Link href="/profile" className="hover:text-pink-400 transition">Profile</Link>
                         </div>

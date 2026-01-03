@@ -3,6 +3,8 @@ import Image from "next/image";
 
 export default function BetCard({bet}: {bet: betProfile}) {
 
+    console.log(bet.away_odd);
+    console.log(bet.home_odd);
     return (
         <div className="card-container">
             <div className="card-swipe">
