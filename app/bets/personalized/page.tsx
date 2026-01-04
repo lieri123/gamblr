@@ -12,7 +12,6 @@ export default function MatchesPage() {
     const [potentialBets, setPotentialBets] = useState<betProfile[]>([]);
     const [loading, setLoading] = useState(true);
     const [currentIndex, setCurrentIndex] = useState(0);
-    const [bettedon, setbettedon] = useState<betProfile[]>([]);
     const [showBetModal, setShowBetModal] = useState(false);
     const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
     const [betOdds, setbetOdds] = useState<number>(0);

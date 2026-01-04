@@ -38,7 +38,6 @@ export async function getPotentialBets(): Promise<betProfile[]> {
 
     if (predictedIds.length > 0) {
         const notInFilter = predictedIds.map(id => `"${id}"`).join(",");
-        console.log("prediction id is ", notInFilter);
         betsQuery = betsQuery.not("id", "in", `(${notInFilter})`);
     }
 
