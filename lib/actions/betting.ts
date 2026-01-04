@@ -30,15 +30,25 @@ export async function getPotentialBets(): Promise<betProfile[]> {
 
     const predictedIds = predicted?.map(p => p.bet_id) ?? [];
 
-    const { data: potentialBets, error } = await supabase
+
+    let betsQuery = supabase
         .from("bets")
         .select("*")
-        .not("id", "in", predictedIds)
         .limit(50);
 
+    if (predictedIds.length > 0) {
+        const notInFilter = predictedIds.map(id => `"${id}"`).join(",");
+        betsQuery = betsQuery.not("id", "in", `(${notInFilter})`);
+    }
+
+    const { data: potentialBets, error } = await betsQuery;
+
     if (error){
+        console.error("Supabase error:", error);
         throw new Error("failed to fetch potential bets");
     }
+
+
 
     const { data: userPrefs, error: prefsError } = await supabase
         .from("users")
@@ -47,6 +57,7 @@ export async function getPotentialBets(): Promise<betProfile[]> {
         .single();
 
     if (prefsError) {
+        console.error("Supabase error:", prefsError);
         throw new Error("Failed to get user preferences");
     }
 
@@ -59,7 +70,7 @@ export async function getPotentialBets(): Promise<betProfile[]> {
     const betIds = filteredBets.map(b => b.id);
 
     const { data: markets } = await supabase
-        .from("bet_markets")
+        .from("markets")
         .select("id, bet_id")
         .in("bet_id", betIds);
 
@@ -75,8 +86,8 @@ export async function getPotentialBets(): Promise<betProfile[]> {
         const marketOutcomes = outcomes?.filter(
             o => o.market_id === market?.id) ?? [];
 
-        const homeOutcome = marketOutcomes[1];
-        const awayOutcome = marketOutcomes[0];
+        const homeOutcome = marketOutcomes[1]?.value;
+        const awayOutcome = marketOutcomes[0]?.value;
 
         return {
             id: bet.id,
@@ -85,12 +96,13 @@ export async function getPotentialBets(): Promise<betProfile[]> {
             home_team: bet.home_team,
             away_team: bet.away_team,
             commence_time: bet.commence_time,
-            home_odd: homeOutcome?.value ?? 0,
-            away_odd: awayOutcome?.value ?? 0,
+            home_odd: homeOutcome ?? 1000,
+            away_odd: awayOutcome ?? -1110,
         };
+
     });
 
-    return filteredBets;
+    return finalBets;
 }
 
 export async function beto(toBetId: string, predicted: string){
@@ -111,6 +123,8 @@ export async function beto(toBetId: string, predicted: string){
     });
 
     if (betError){
+        console.error("Supabase error:", betError);
+
         throw new Error("Failed to create a new bet");
     }
 }

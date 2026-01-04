@@ -1,8 +1,7 @@
 "use client";
-import {getBets} from "@/lib/actions/nonpersonalbets";
-import { beto } from "@/lib/actions/betting";
+import {getPotentialBets, beto} from "@/lib/actions/betting";
 import { useEffect, useState} from "react";
-import { betProfile } from "@/lib/actions/betting";
+import { betProfile} from "@/lib/actions/betting";
 import { useRouter } from "next/navigation";
 import MatchCard from "@/components/MatchCard";
 import MatchButtons from "@/components/MatchButtons";
@@ -23,7 +22,7 @@ export default function MatchesPage() {
     useEffect(() => {
         async function loadBets() {
             try{
-                const potentialBets = await getBets();
+                const potentialBets = await getPotentialBets();
                 setPotentialBets(potentialBets);
             }catch(error){
                 console.error(error);
@@ -38,7 +37,7 @@ export default function MatchesPage() {
     async function handleBetting(predictedteam:string, odds:number) {
 
         setSelectedTeam(predictedteam);
-        setbetOdds(odds);
+        setbetOdds(odds); 
         setShowBetModal(true);
 
     }
@@ -71,7 +70,7 @@ export default function MatchesPage() {
     async function refreshBets() {
         setLoading(true);
         try{
-            const bets = await getBets();
+            const bets = await getPotentialBets();
             setPotentialBets(bets);
             setCurrentIndex(0);
         } finally {
@@ -113,31 +112,10 @@ export default function MatchesPage() {
     if(currentIndex >= potentialBets.length){
         return(
             <div className="h-full bg-gradient-to-br from-pink-50 to-red-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
-                <button
-                    onClick={() => router.back()}
-                    className="absolute top-4 left-4 p-2 rounded-full hover:bg-white/20 dark:hover:bg-gray-700/50 transition-colors duration-200"
-                    title="Go back"
-                >
-                    <svg
-                        className="w-6 h-6 text-gray-700 dark:text-gray-300"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M15 19l-7-7 7-7"
-                        />
-                    </svg>
-                </button>
-
                 <div className="text-center max-w-md mx-auto p-8">
                     <div className="w-24 h-24 bg-gradient-to-r from-pink-500 to-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
                         <span className="text-4xl">🎲</span>
                     </div>
-
                     <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
                         No more bets to show
                     </h2>
