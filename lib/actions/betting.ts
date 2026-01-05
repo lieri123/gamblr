@@ -105,7 +105,7 @@ export async function getPotentialBets(): Promise<betProfile[]> {
     return finalBets;
 }
 
-export async function beto(toBetId: string, predicted: string){
+export async function beto(toBetId: string, predicted: string, amount:number){
     const supabase = await createClient();
     const{
         data: {user},
@@ -119,6 +119,7 @@ export async function beto(toBetId: string, predicted: string){
         from_user_id:user.id,
         bet_id: toBetId,
         predicted: predicted,
+        amount: amount,
         created_at:new Date()
     });
 

@@ -8,6 +8,7 @@ import MatchCard from "@/components/MatchCard";
 import MatchButtons from "@/components/MatchButtons";
 import { useSwipeable } from "react-swipeable";
 import BetModal from "@/components/BetModal";
+import Navbar from "@/components/Navbar";
 
 export default function MatchesPage() {
     const [potentialBets, setPotentialBets] = useState<betProfile[]>([]);
@@ -55,7 +56,7 @@ export default function MatchesPage() {
             const bettedon = potentialBets[currentIndex];
 
             try{
-                const result = await beto(bettedon.id, selectedTeam);
+                const result = await beto(bettedon.id, selectedTeam, amount);
                 setCurrentIndex((prev) => prev + 1);
             }
             catch (error){
@@ -113,6 +114,7 @@ export default function MatchesPage() {
     if(currentIndex >= potentialBets.length){
         return(
             <div className="h-full bg-gradient-to-br from-pink-50 to-red-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
+                <Navbar minimal={false} /> {/* Navbar will use useAuth to show login/sign out */}
                 <button
                     onClick={() => router.back()}
                     className="absolute top-4 left-4 p-2 rounded-full hover:bg-white/20 dark:hover:bg-gray-700/50 transition-colors duration-200"
@@ -158,9 +160,10 @@ export default function MatchesPage() {
 
     return (
         <div className="h-full overflow-y-auto bg-gradient-to-br from-pink-50 to-red-50 dark:from-gray-900 dark:to-gray-800">
+            <Navbar minimal={false} /> {/* Navbar will use useAuth to show login/sign out */}
             <div className="container mx-auto px-4 py-8">
                 <header className="mb-8">
-                    <div className="flex items-center justify-between mb-4" {...swipeHandlers}>
+                    <div className="flex items-center justify-between mb-4" >
                         <button
                             onClick={() => router.back()}
                             className="p-2 rounded-full hover:bg-white/20 dark:hover:bg-gray-700/50 transition-colors duration-200"
@@ -193,7 +196,7 @@ export default function MatchesPage() {
                     </div>
                 </header>
 
-                <div className="max-w-md mx-auto">
+                <div className="max-w-md mx-auto" {...swipeHandlers}>
                     <MatchCard bet={currPotentialBets} />
                     <div className="mt-8">
                         <MatchButtons onRight={()=>handleBetting(currPotentialBets.home_team,currPotentialBets.home_odd)} onLeft={() => handleBetting(currPotentialBets.away_team, currPotentialBets.away_odd)}

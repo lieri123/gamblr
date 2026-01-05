@@ -7,6 +7,7 @@ import MatchCard from "@/components/MatchCard";
 import MatchButtons from "@/components/MatchButtons";
 import { useSwipeable } from "react-swipeable";
 import BetModal from "@/components/BetModal";
+import Navbar from "@/components/Navbar";
 
 export default function MatchesPage() {
     const [potentialBets, setPotentialBets] = useState<betProfile[]>([]);
@@ -54,7 +55,7 @@ export default function MatchesPage() {
             const bettedon = potentialBets[currentIndex];
 
             try{
-                const result = await beto(bettedon.id, selectedTeam);
+                const result = await beto(bettedon.id, selectedTeam, amount);
                 setCurrentIndex((prev) => prev + 1);
             }
             catch (error){
@@ -112,6 +113,7 @@ export default function MatchesPage() {
     if(currentIndex >= potentialBets.length){
         return(
             <div className="h-full bg-gradient-to-br from-pink-50 to-red-50 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
+                <Navbar minimal={false} /> {/* Navbar will use useAuth to show login/sign out */}
                 <div className="text-center max-w-md mx-auto p-8">
                     <div className="w-24 h-24 bg-gradient-to-r from-pink-500 to-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
                         <span className="text-4xl">🎲</span>
@@ -136,6 +138,8 @@ export default function MatchesPage() {
 
     return (
         <div className="h-full overflow-y-auto bg-gradient-to-br from-pink-50 to-red-50 dark:from-gray-900 dark:to-gray-800">
+            <Navbar minimal={false} /> {/* Navbar will use useAuth to show login/sign out */}
+
             <div className="container mx-auto px-4 py-8">
                 <header className="mb-8">
                     <div className="flex items-center justify-between mb-4" {...swipeHandlers}>
@@ -163,7 +167,7 @@ export default function MatchesPage() {
 
                     <div className="text-center">
                         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                            Discover Bets
+                            For You
                         </h1>
                         <p className="text-gray-600 dark:text-gray-400">
                             {currentIndex + 1} of {potentialBets.length} profiles

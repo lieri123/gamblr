@@ -3,10 +3,19 @@ import Image from "next/image";
 import { useAuth } from "@/context/auth-context";
 import Navbar from "../components/Navbar"
 import { useRouter } from "next/navigation";
+import {useEffect} from "react";
 
 export default function Home() {
     const { user, signOut } = useAuth(); // get user state and signOut function
     const router = useRouter();
+
+
+    useEffect(() => {
+        if (user) {
+            router.push("/bets/personalized");
+        }
+    }, [user, router]);
+
 
     const handleClick = () => {
         if (!user) {

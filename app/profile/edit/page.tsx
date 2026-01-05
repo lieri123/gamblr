@@ -6,6 +6,8 @@ import {
 } from "@/lib/actions/profile";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import PhotoUpload  from "@/components/PhotoUpload";
+
 
 export default function EditProfilePage() {
     const [loading, setLoading] = useState(true);
@@ -262,26 +264,14 @@ export default function EditProfilePage() {
 
                 {/* Right Section - Profile Photo */}
                 <section style={sectionStyle}>
-                    <label htmlFor="avatar_url" style={labelStyle}>
-                        Profile Photo
-                    </label>
-                    <input
-                        type="url"
-                        name="avatar_url"
-                        id="avatar_url"
-                        required
-                        onChange={handleInputChange}
-                        style={inputStyle}
+                    <PhotoUpload
+                        onPhotoUploaded={(url) => {
+                            setFormData((prev) => ({
+                                ...prev,
+                                avatar_url: url,
+                            }));
+                        }}
                     />
-                    {formData.avatar_url && (
-                        <div style={photoContainerStyle}>
-                            <img
-                                src={formData.avatar_url}
-                                alt="profile pic preview"
-                                style={photoStyle}
-                            />
-                        </div>
-                    )}
                 </section>
             </form>
         </div>

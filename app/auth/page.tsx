@@ -47,10 +47,15 @@ export default function AuthPage() {
                     return;
                 }
 
+                router.push("/profile/edit");
+
+
             }
             else{
                 const {error} = await supabase.auth.signInWithPassword({email, password})
                 if (error) throw error;
+
+
 
                 router.push("/bets");
             }
