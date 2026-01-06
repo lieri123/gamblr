@@ -5,7 +5,6 @@ import { betProfile} from "@/lib/actions/betting";
 import { useRouter } from "next/navigation";
 import MatchCard from "@/components/MatchCard";
 import MatchButtons from "@/components/MatchButtons";
-import { useSwipeable } from "react-swipeable";
 import BetModal from "@/components/BetModal";
 import Navbar from "@/components/Navbar";
 
@@ -87,15 +86,6 @@ export default function MatchesPage() {
 
     const currPotentialBets = potentialBets[currentIndex];
 
-    console.log(currPotentialBets);
-
-    const swipeHandlers = useSwipeable({
-        onSwipedRight: ()=> handleBetting(currPotentialBets.home_team, currPotentialBets.home_odd),
-        onSwipedLeft: ()=> handleBetting(currPotentialBets.away_team, currPotentialBets.away_odd),
-        onSwipedUp: handlePass,
-        trackMouse: true,
-        preventScrollOnSwipe: true,
-    });
 
     if (loading){
         return (
@@ -142,7 +132,7 @@ export default function MatchesPage() {
 
             <div className="container mx-auto px-4 py-8">
                 <header className="mb-8">
-                    <div className="flex items-center justify-between mb-4" {...swipeHandlers}>
+                    <div className="flex items-center justify-between mb-4">
                         <button
                             onClick={() => router.back()}
                             className="p-2 rounded-full hover:bg-white/20 dark:hover:bg-gray-700/50 transition-colors duration-200"
@@ -176,7 +166,7 @@ export default function MatchesPage() {
                 </header>
 
                 <div className="max-w-md mx-auto">
-                    <MatchCard bet={currPotentialBets} />
+                    <MatchCard bet={currPotentialBets} onSwipe={handleBetting} />
                     <div className="mt-8">
                         <MatchButtons onRight={()=>handleBetting(currPotentialBets.home_team,currPotentialBets.home_odd)} onLeft={() => handleBetting(currPotentialBets.away_team, currPotentialBets.away_odd)}
                                       onPass={handlePass} />
