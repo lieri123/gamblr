@@ -7,6 +7,10 @@ import {
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import PhotoUpload  from "@/components/PhotoUpload";
+import {PaymentElement} from "@stripe/react-stripe-js";
+import { Elements } from "@stripe/react-stripe-js";
+import { loadStripe } from "@stripe/stripe-js";
+
 
 
 export default function EditProfilePage() {
@@ -14,6 +18,10 @@ export default function EditProfilePage() {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
+    const [clientSecret, setClientSecret] = useState("");
+
+    const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+
 
     const [formData, setFormData] = useState({
         full_name: "",
@@ -37,14 +45,46 @@ export default function EditProfilePage() {
                         birthdate: profileData.birthdate || "",
                         avatar_url: profileData.avatar_url || "",
                     });
+
+                    const stripeId = profileData.stripe_id
+
+                    if (!stripeId) {
+
+                        try {
+                            const stripesetup = await fetch("/api/create-customer-intent", {
+                                method: "POST",
+                                headers: {"Content-Type": "application/json"},
+                                body: JSON.stringify({email: profileData.email}),
+
+                            })
+
+                            const data = await stripesetup.json();
+
+                            setClientSecret(data.clientSecret);
+                        } catch (err) {
+                            console.error("failed to create stripe customer");
+
+                        }
+                    }
+                    const setupRes = await fetch("/api/create-setup-intent", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ customerId: stripeId }),
+                    });
+                    const setupData = await setupRes.json();
+                    setClientSecret(setupData.clientSecret);
                 }
-            } catch {
+
+            }catch {
                 setError("Failed to load profile");
-            } finally {
+            }
+            finally {
                 setLoading(false);
             }
         }
+
         loadProfile();
+
     }, []);
 
     async function handleFormSubmit(e: React.FormEvent) {
@@ -283,6 +323,9 @@ export default function EditProfilePage() {
                                 {saving ? "Saving..." : "Save Changes"}
                             </button>
                         </div>
+                        <Elements stripe={stripePromise} options={{ clientSecret }}>
+                            {<PaymentElement /> }
+                        </Elements>
                     </form>
                 </div>
             </div>

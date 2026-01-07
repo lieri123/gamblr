@@ -4,6 +4,7 @@ import {useEffect, useState} from "react";
 import {getCurrentUserProfile} from "@/lib/actions/profile";
 import Link from "next/link";
 
+
 export interface UserProfile{
     id: string;
     full_name: string;
@@ -157,12 +158,6 @@ export default function ProfilePage(){
                                             </div>
                                         </div>
                                     </div>
-
-                                    <div>
-                                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                                            Dating Preferences
-                                        </h3>
-                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -194,8 +189,8 @@ export default function ProfilePage(){
                                                 </svg>
                                             </div>
                                             <span className="text-gray-900 dark:text-white">
-                        Edit Profile
-                      </span>
+                                                Edit Profile
+                                             </span>
                                         </div>
                                         <svg
                                             className="w-5 h-5 text-gray-400"
@@ -220,12 +215,12 @@ export default function ProfilePage(){
                                 </h3>
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-700">
-                    <span className="text-gray-900 dark:text-white">
-                      Username
-                    </span>
-                                        <span className="text-gray-500 dark:text-gray-400">
-                      @{profile.username}
-                    </span>
+                                        <span className="text-gray-900 dark:text-white">
+                                          Username
+                                        </span>
+                                                            <span className="text-gray-500 dark:text-gray-400">
+                                          @{profile.username}
+                                        </span>
                                     </div>
                                 </div>
                             </div>
