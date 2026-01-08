@@ -1,6 +1,6 @@
 
-import {useState} from "react";
-
+import {useEffect, useState} from "react";
+import {useStripe, useElements, PaymentElement} from "@stripe/react-stripe-js";
 
 type BetModalProps = {
     team: string;
@@ -11,6 +11,9 @@ type BetModalProps = {
 
 export default function BetModal({ team, odds, onClose, onConfirm }:BetModalProps ) {
     const [amount, setAmount] = useState<string>("");
+    const [clientSecre, setClientSecret] = useState("");
+    const stripe = useStripe();
+    const elements = useElements();
 
     if (odds > 0){
         odds = 1 + odds/100;
@@ -27,6 +30,28 @@ export default function BetModal({ team, odds, onClose, onConfirm }:BetModalProp
         !isNaN(numericAmount)
             ? (numericAmount * odds).toFixed(2)
             : "0.00";
+
+
+    useEffect(() => {
+        fetch("/api/create-payment-intent", {
+            method: "POST",
+            headers:{
+                "Content-Type": "application/json",
+            }, body: JSON.stringify({amount}),
+        }).then((res)=>res.json())
+            .then((data)=>setClientSecret(data.clientSecret));
+    },[amount]);
+
+    const handleClick = async (event: React.MouseEvent<HTMLButtonElement>) => {
+        event.preventDefault();
+
+        if (!stripe || !elements) return;
+
+        onConfirm(parseFloat(amount) || 0);
+
+
+
+    };
 
     return (
         <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
@@ -70,7 +95,7 @@ export default function BetModal({ team, odds, onClose, onConfirm }:BetModalProp
 
                 {/* Button */}
                 <button
-                    onClick={() => onConfirm(parseFloat(amount) || 0)}
+                    onClick={handleClick}
                     className="w-full py-3 rounded-lg bg-green-500 hover:bg-green-600 text-white font-bold transition"
                 >
                     Place Bet
