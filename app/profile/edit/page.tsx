@@ -7,7 +7,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import PhotoUpload  from "@/components/PhotoUpload";
-import {PaymentElement} from "@stripe/react-stripe-js";
+import {PaymentElement, useElements, useStripe} from "@stripe/react-stripe-js";
 import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 
@@ -19,6 +19,8 @@ export default function EditProfilePage() {
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
     const [clientSecret, setClientSecret] = useState("");
+    const stripe = useStripe();
+    const elements = useElements();
 
     const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
@@ -94,11 +96,29 @@ export default function EditProfilePage() {
 
         try {
             const result = await updateUserProfile(formData);
-            if (result.success) {
-                router.push("/profile");
-            } else {
+            if(!result.success){
+
                 setError(result.error || "Failed to update profile.");
+                setSaving(false);
+                return;
+
             }
+
+            if (stripe && elements && clientSecret) {
+                const {error} = await stripe.confirmSetup({
+                    elements,
+                    redirect: "if_required",
+                });
+
+                if (error) {
+                    console.error("Error confirming card:", error);
+                    setError(error.message || "Failed to save card.");
+                    setSaving(false);
+                    return;
+                }
+            }
+
+
         } catch {
             setError("Failed to update profile.");
         } finally {
