@@ -1,16 +1,20 @@
-import { supabase } from "@/lib/supabase/service";
+"use server";
 
 import Stripe from "stripe";
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+import { createClient } from "@/lib/supabase/server";
 
 export async function POST(req:Request){
-    const {
-        data: { user },
+
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+
+    const supabase = await createClient();
+    const{
+        data:{user},
     } = await supabase.auth.getUser();
 
     if (!user) {
-        return new Response("Unauthorized", { status: 401 });
+
+        return new Response("Not authenticated", { status: 401 });
     }
 
     const userId = user.id;

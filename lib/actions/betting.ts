@@ -13,6 +13,20 @@ export interface betProfile{
     home_odd: number;
     away_odd: number;
 }
+
+export interface betEventsProfile{
+    id: string;
+    sport_key: string;
+    sport_title: string;
+    home_team: string;
+    away_team: string;
+    event_id: string;
+    outcome: string;
+    commence_time: string;
+    home_odd: number;
+    away_odd: number;
+}
+
 export async function getPotentialBets(): Promise<betProfile[]> {
     const supabase = await createClient();
     const{
@@ -119,6 +133,7 @@ export async function beto(toBetId: string, predicted: string, amount:number){
         from_user_id:user.id,
         bet_id: toBetId,
         predicted: predicted,
+        outcome:"In Progress",
         amount: amount,
         created_at:new Date()
     });
@@ -149,7 +164,7 @@ export async function getUserbets() {
         throw new Error("Failed to fetch matches");
     }
 
-    const betted: betProfile[] = [];
+    const betted: betEventsProfile[] = [];
 
     for (const bet of bets || []) {
 
@@ -168,6 +183,8 @@ export async function getUserbets() {
             sport_title: otherbets.sport_title,
             home_team: otherbets.home_team,
             away_team: otherbets.away_team,
+            event_id: bet.bet_id,
+            outcome: bet.outcome,
             commence_time: otherbets.commence_time,
             home_odd: 0,
             away_odd: 0

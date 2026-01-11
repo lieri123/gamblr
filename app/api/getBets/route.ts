@@ -50,7 +50,6 @@ export async function GET(req: Request) {
 
             for (const market of bookmaker.markets ?? []) {
 
-                // 4️⃣ INSERT MARKET + RETURN ID
                 const { data: marketData, error: marketErr } = await supabase
                     .from("markets")
                     .insert({

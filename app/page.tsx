@@ -19,7 +19,7 @@ export default function Home() {
 
     const handleClick = () => {
         if (!user) {
-            // If no user, redirect to login/signup page
+
             router.push("/auth");
             return;
         }

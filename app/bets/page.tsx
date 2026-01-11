@@ -197,7 +197,7 @@ export default function MatchesPage() {
                 </header>
 
                 <div className="max-w-md mx-auto" {...swipeHandlers}>
-                    <MatchCard bet={currPotentialBets} />
+                    <MatchCard bet={currPotentialBets} onSwipe={handleBetting}  />
                     <div className="mt-8">
                         <MatchButtons onRight={()=>handleBetting(currPotentialBets.home_team,currPotentialBets.home_odd)} onLeft={() => handleBetting(currPotentialBets.away_team, currPotentialBets.away_odd)}
                                       onPass={handlePass} />

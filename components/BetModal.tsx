@@ -49,8 +49,6 @@ export default function BetModal({ team, odds, onClose, onConfirm }:BetModalProp
 
         onConfirm(parseFloat(amount) || 0);
 
-
-
     };
 
     return (

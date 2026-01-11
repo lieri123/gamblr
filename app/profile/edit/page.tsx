@@ -7,9 +7,10 @@ import {
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import PhotoUpload  from "@/components/PhotoUpload";
-import {PaymentElement, useElements, useStripe} from "@stripe/react-stripe-js";
-import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
+import PaymentSection from "./PaymentSection";
+import { Elements, useStripe, useElements } from "@stripe/react-stripe-js";
+import LeagueSelector from "@/components/LeagueSelector";
 
 
 
@@ -19,11 +20,11 @@ export default function EditProfilePage() {
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
     const [clientSecret, setClientSecret] = useState("");
-    const stripe = useStripe();
-    const elements = useElements();
 
-    const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
+    const stripePromise = loadStripe(
+        process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
+    );
 
     const [formData, setFormData] = useState({
         full_name: "",
@@ -32,6 +33,7 @@ export default function EditProfilePage() {
         gender: "male" as "male" | "female" | "other",
         birthdate: "",
         avatar_url: "",
+        favorite_leagues: [] as string[],
     });
 
     useEffect(() => {
@@ -46,9 +48,11 @@ export default function EditProfilePage() {
                         gender: profileData.gender || "male",
                         birthdate: profileData.birthdate || "",
                         avatar_url: profileData.avatar_url || "",
+                        favorite_leagues: profileData.preferences || [],
+
                     });
 
-                    const stripeId = profileData.stripe_id
+                    let stripeId = profileData.stripe_id
 
                     if (!stripeId) {
 
@@ -61,7 +65,7 @@ export default function EditProfilePage() {
                             })
 
                             const data = await stripesetup.json();
-
+                            stripeId = data.stripe_id;
                             setClientSecret(data.clientSecret);
                         } catch (err) {
                             console.error("failed to create stripe customer");
@@ -102,20 +106,6 @@ export default function EditProfilePage() {
                 setSaving(false);
                 return;
 
-            }
-
-            if (stripe && elements && clientSecret) {
-                const {error} = await stripe.confirmSetup({
-                    elements,
-                    redirect: "if_required",
-                });
-
-                if (error) {
-                    console.error("Error confirming card:", error);
-                    setError(error.message || "Failed to save card.");
-                    setSaving(false);
-                    return;
-                }
             }
 
 
@@ -295,8 +285,28 @@ export default function EditProfilePage() {
                                     style={inputStyle}
                                 />
                             </div>
-
                         </div>
+
+                        <div className="mb-8">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
+                                Favorite Sports Leagues
+                            </label>
+
+                            <LeagueSelector
+                                selected={formData.favorite_leagues}
+                                onChange={(leagues) =>
+                                    setFormData((prev) => ({
+                                        ...prev,
+                                        favorite_leagues: leagues,
+                                    }))
+                                }
+                            />
+
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                Select the leagues you want to follow
+                            </p>
+                        </div>
+
 
                         <div className="mb-8">
                             <label
@@ -327,6 +337,12 @@ export default function EditProfilePage() {
                             </div>
                         )}
 
+                        {clientSecret && (
+                            <Elements stripe={stripePromise} options={{ clientSecret }}>
+                                <PaymentSection />
+                            </Elements>
+                        )}
+
                         <div className="flex items-center justify-between pt-6 border-t border-gray-200 dark:border-gray-700">
                             <button
                                 type="button"
@@ -343,9 +359,6 @@ export default function EditProfilePage() {
                                 {saving ? "Saving..." : "Save Changes"}
                             </button>
                         </div>
-                        <Elements stripe={stripePromise} options={{ clientSecret }}>
-                            {<PaymentElement /> }
-                        </Elements>
                     </form>
                 </div>
             </div>
