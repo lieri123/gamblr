@@ -38,6 +38,7 @@ export default function PhotoUpload({
                 setError(result.error ?? "Failed to upload photo.");
             }
         } catch (err) {
+            console.error(err);
             setError("Failed to change photo");
         } finally {
             setUploading(false);
@@ -49,7 +50,7 @@ export default function PhotoUpload({
     }
 
     return (
-        <div className="absolute bottom-0 right-0">
+        <div className="absolute -bottom-1 -right-1">
             <input
                 ref={fileInputRef}
                 type="file"
@@ -61,7 +62,7 @@ export default function PhotoUpload({
                 type="button"
                 onClick={handleClick}
                 disabled={uploading}
-                className="absolute bottom-0 right-0 bg-pink-500 text-white p-2 rounded-full hover:bg-pink-600 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-pink-500 text-white p-2 rounded-full hover:bg-pink-600 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Change photo"
             >
                 {uploading ? (
@@ -88,6 +89,12 @@ export default function PhotoUpload({
                     </svg>
                 )}
             </button>
+
+            {error && (
+                <p className="absolute top-full right-0 mt-2 w-40 text-right text-xs text-red-600">
+                    {error}
+                </p>
+            )}
         </div>
     );
 }

@@ -1,178 +1,210 @@
 "use server";
 
+import { requireUser } from "@/lib/supabase/server";
+import { getSupabaseAdmin } from "@/lib/supabase/service";
+import { getStripe } from "@/lib/stripe";
+import { fetchOpenBets } from "@/lib/bets/queries";
+import type { BetProfile } from "@/lib/types/bet";
 
-import { createClient } from "../supabase/server";
+const MIN_STAKE = 1;
+const MAX_STAKE = 500;
 
-export interface betProfile{
-    id: string;
-    sport_key: string;
-    sport_title: string;
-    home_team: string;
-    away_team: string;
-    commence_time: string;
-    home_odd: number;
-    away_odd: number;
+export interface PlaceBetResult {
+    success: boolean;
+    error?: string;
 }
-export async function getPotentialBets(): Promise<betProfile[]> {
-    const supabase = await createClient();
-    const{
-        data:{user},
-    } = await supabase.auth.getUser();
 
-    if(!user){
-        throw new Error("Not authenticated.");
+export async function getBets(): Promise<BetProfile[]> {
+    const { supabase, user } = await requireUser();
+
+    return fetchOpenBets(supabase, user.id);
+}
+
+export async function getPotentialBets(): Promise<BetProfile[]> {
+    const { supabase, user } = await requireUser();
+
+    const { data: profile, error } = await supabase
+        .from("users")
+        .select("preferences")
+        .eq("id", user.id)
+        .maybeSingle();
+
+    if (error) {
+        console.error("Supabase error (preferences):", error);
+        throw new Error("Failed to load your preferences.");
     }
 
-    const { data: predicted } = await supabase
+    const preferences = Array.isArray(profile?.preferences)
+        ? (profile.preferences as string[])
+        : [];
+
+    return fetchOpenBets(supabase, user.id, { sports: preferences });
+}
+
+export async function getUserBets(): Promise<BetProfile[]> {
+    const { supabase, user } = await requireUser();
+
+    const { data: predictions, error } = await supabase
         .from("predictions")
         .select("bet_id")
         .eq("from_user_id", user.id);
 
-    const predictedIds = predicted?.map(p => p.bet_id) ?? [];
+    if (error) {
+        console.error("Supabase error (predictions):", error);
+        throw new Error("Failed to load your bets.");
+    }
 
+    const betIds = (predictions ?? []).map((p) => p.bet_id as string);
 
-    let betsQuery = supabase
+    if (betIds.length === 0) {
+        return [];
+    }
+
+    const { data: bets, error: betsError } = await supabase
         .from("bets")
-        .select("*")
-        .limit(50);
+        .select("id, sport_key, sport_title, home_team, away_team, commence_time")
+        .in("id", betIds);
 
-    if (predictedIds.length > 0) {
-        const notInFilter = predictedIds.map(id => `"${id}"`).join(",");
-        betsQuery = betsQuery.not("id", "in", `(${notInFilter})`);
+    if (betsError) {
+        console.error("Supabase error (bets):", betsError);
+        throw new Error("Failed to load your bets.");
     }
 
-    const { data: potentialBets, error } = await betsQuery;
+    return (bets ?? []).map((bet) => ({
+        id: bet.id,
+        sport_key: bet.sport_key,
+        sport_title: bet.sport_title,
+        home_team: bet.home_team,
+        away_team: bet.away_team,
+        commence_time: bet.commence_time,
+        home_odd: null,
+        away_odd: null,
+    }));
+}
 
-    if (error){
-        console.error("Supabase error:", error);
-        throw new Error("failed to fetch potential bets");
+export async function placeBet(
+    betId: string,
+    predicted: string,
+    amount: number
+): Promise<PlaceBetResult> {
+    const { supabase, user } = await requireUser();
+
+    if (!Number.isFinite(amount) || amount < MIN_STAKE || amount > MAX_STAKE) {
+        return {
+            success: false,
+            error: `Stake must be between $${MIN_STAKE} and $${MAX_STAKE}.`,
+        };
     }
 
+    const stake = Math.round(amount * 100) / 100;
+    const amountInCents = Math.round(stake * 100);
 
+    const { data: bet, error: betError } = await supabase
+        .from("bets")
+        .select("id, home_team, away_team, commence_time")
+        .eq("id", betId)
+        .maybeSingle();
 
-    const { data: userPrefs, error: prefsError } = await supabase
+    if (betError || !bet) {
+        return { success: false, error: "That bet is no longer available." };
+    }
+
+    if (predicted !== bet.home_team && predicted !== bet.away_team) {
+        return { success: false, error: "Invalid team for this bet." };
+    }
+
+    if (new Date(bet.commence_time).getTime() <= Date.now()) {
+        return { success: false, error: "This game has already started." };
+    }
+
+    const { data: existing } = await supabase
+        .from("predictions")
+        .select("id")
+        .eq("from_user_id", user.id)
+        .eq("bet_id", betId)
+        .maybeSingle();
+
+    if (existing) {
+        return { success: false, error: "You've already bet on this game." };
+    }
+
+    const admin = getSupabaseAdmin();
+
+    const { data: profile, error: profileError } = await admin
         .from("users")
-        .select("preferences")
+        .select("stripe_id")
         .eq("id", user.id)
         .single();
 
-    if (prefsError) {
-        console.error("Supabase error:", prefsError);
-        throw new Error("Failed to get user preferences");
-    }
-
-    const currUserprefs = userPrefs.preferences as string [] ?? [];
-
-    const filteredBets = (potentialBets ?? []).filter(b =>
-        currUserprefs.length === 0 || currUserprefs.includes(b.sport_title)
-    );
-
-    const betIds = filteredBets.map(b => b.id);
-
-    const { data: markets } = await supabase
-        .from("markets")
-        .select("id, bet_id")
-        .in("bet_id", betIds);
-
-    const marketIds = markets?.map(m => m.id) ?? [];
-
-    const { data: outcomes } = await supabase
-        .from("outcomes")
-        .select("market_id, value")
-        .in("market_id", marketIds);
-
-    const finalBets: betProfile[] = filteredBets.map(bet => {
-        const market = markets?.find(m => m.bet_id === bet.id);
-        const marketOutcomes = outcomes?.filter(
-            o => o.market_id === market?.id) ?? [];
-
-        const homeOutcome = marketOutcomes[1]?.value;
-        const awayOutcome = marketOutcomes[0]?.value;
-
+    if (profileError || !profile?.stripe_id) {
         return {
-            id: bet.id,
-            sport_key: bet.sport_key,
-            sport_title: bet.sport_title,
-            home_team: bet.home_team,
-            away_team: bet.away_team,
-            commence_time: bet.commence_time,
-            home_odd: homeOutcome ?? 1000,
-            away_odd: awayOutcome ?? -1110,
+            success: false,
+            error: "Add a payment method in your profile before betting.",
         };
+    }
 
+    const stripe = getStripe();
+    const customerId = profile.stripe_id as string;
+
+    const paymentMethods = await stripe.paymentMethods.list({
+        customer: customerId,
+        type: "card",
+        limit: 1,
     });
 
-    return finalBets;
-}
+    const paymentMethod = paymentMethods.data[0];
 
-export async function beto(toBetId: string, predicted: string, amount:number){
-    const supabase = await createClient();
-    const{
-        data: {user},
-    } = await supabase.auth.getUser();
-
-    if(!user){
-        throw new Error("Not authenticated.");
+    if (!paymentMethod) {
+        return {
+            success: false,
+            error: "No saved card found. Add one in your profile.",
+        };
     }
 
-    const {error:betError} = await supabase.from("predictions").insert({
-        from_user_id:user.id,
-        bet_id: toBetId,
-        predicted: predicted,
-        amount: amount,
-        created_at:new Date()
+    let paymentIntentId: string;
+
+    try {
+        const paymentIntent = await stripe.paymentIntents.create(
+            {
+                amount: amountInCents,
+                currency: "usd",
+                customer: customerId,
+                payment_method: paymentMethod.id,
+                off_session: true,
+                confirm: true,
+                metadata: { bet_id: betId, user_id: user.id, predicted },
+            },
+
+            { idempotencyKey: `bet:${user.id}:${betId}` }
+        );
+
+        paymentIntentId = paymentIntent.id;
+    } catch (error) {
+        console.error("Stripe error:", error);
+        const message =
+            error instanceof Error ? error.message : "Card was declined.";
+        return { success: false, error: message };
+    }
+
+    const { error: insertError } = await supabase.from("predictions").insert({
+        from_user_id: user.id,
+        bet_id: betId,
+        predicted,
+        amount: stake,
+        created_at: new Date().toISOString(),
     });
 
-    if (betError){
-        console.error("Supabase error:", betError);
+    if (insertError) {
+        console.error("Supabase error (prediction insert):", insertError);
 
-        throw new Error("Failed to create a new bet");
-    }
-}
-
-export async function getUserbets() {
-    const supabase = await createClient();
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-        throw new Error("Not authenticated.");
-    }
-
-    const { data: bets, error } = await supabase
-        .from("predictions")
-        .select("*")
-        .eq("from_user_id", user.id);
-
-    if (error) {
-        throw new Error("Failed to fetch matches");
-    }
-
-    const betted: betProfile[] = [];
-
-    for (const bet of bets || []) {
-
-        const { data: otherbets, error: beterror } = await supabase
-            .from("bets")
-            .select("*")
-            .eq("id", bet.id)
-            .single();
-
-        if (beterror) {
-            continue;
+        try {
+            await stripe.refunds.create({ payment_intent: paymentIntentId });
+        } catch (refundError) {
+            console.error("Stripe refund failed:", refundError);
         }
-        betted.push({
-            id: otherbets.id,
-            sport_key: otherbets.sport_key,
-            sport_title: otherbets.sport_title,
-            home_team: otherbets.home_team,
-            away_team: otherbets.away_team,
-            commence_time: otherbets.commence_time,
-            home_odd: 0,
-            away_odd: 0
-        });
+
+        return { success: false, error: "Couldn't record your bet. You have not been charged." };
     }
 
-    return betted;
+    return { success: true };
 }

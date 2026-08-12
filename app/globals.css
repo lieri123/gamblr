@@ -60,6 +60,13 @@ body {
     flex-direction: column;
     justify-content: center;
     gap: 1rem;
+    padding: 1rem;
+}
+
+.card-meta {
+    text-align: center;
+    font-size: 0.8rem;
+    color: #6b7280;
 }
 
 .team-row {

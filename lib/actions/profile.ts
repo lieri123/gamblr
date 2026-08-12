@@ -1,43 +1,35 @@
 "use server";
 
-import {createClient} from "../supabase/server";
-import { UserProfile } from "@/app/profile/page";
+import { createClient, requireUser } from "@/lib/supabase/server";
+import type { UserProfile } from "@/lib/types/user";
 
-export async function getCurrentUserProfile(){
-    const supabase = await createClient()
+export async function getCurrentUserProfile(): Promise<UserProfile | null> {
+    const supabase = await createClient();
 
-    const{
-        data:{ user },
+    const {
+        data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user){
-        return null
-    }
-
-    const {data: profile, error} = await supabase
-        .from("users")
-        .select("*")
-        .eq("id", user.id)
-        .single();
-
-    if(error){
-        console.error("Error getting user profile: ", error);
+    if (!user) {
         return null;
     }
 
-    return profile;
+    const { data: profile, error } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", user.id)
+        .maybeSingle();
 
+    if (error) {
+        console.error("Error getting user profile:", error);
+        return null;
+    }
+
+    return profile as UserProfile | null;
 }
 
-export async function updateUserProfile(profileData: Partial<UserProfile>){
-    const supabase = await createClient();
-    const{
-        data:{ user },
-    } = await supabase.auth.getUser();
-
-    if (!user){
-        return {success: false, error: "User not authenticated"}
-    }
+export async function updateUserProfile(profileData: Partial<UserProfile>) {
+    const { supabase, user } = await requireUser();
 
     const { error } = await supabase
         .from("users")
@@ -53,25 +45,17 @@ export async function updateUserProfile(profileData: Partial<UserProfile>){
         .eq("id", user.id);
 
     if (error) {
-        console.log(error);
+        console.error("Supabase error (profile update):", error);
         return { success: false, error: error.message };
     }
 
     return { success: true };
 }
 
-export async function uploadProfilePhoto(file: File){
-    const supabase = await createClient();
+export async function uploadProfilePhoto(file: File) {
+    const { supabase, user } = await requireUser();
 
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-        return { success: false, error: "User not authenticated" };
-    }
-
-    const fileExt = file.name.split(".").pop();
+    const fileExt = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
     const fileName = `${user.id}-${Date.now()}.${fileExt}`;
 
     const { error } = await supabase.storage
@@ -88,5 +72,6 @@ export async function uploadProfilePhoto(file: File){
     const {
         data: { publicUrl },
     } = supabase.storage.from("profile-photos").getPublicUrl(fileName);
+
     return { success: true, url: publicUrl };
 }
