@@ -1,29 +1,23 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
     getCurrentUserProfile,
     updateUserProfile,
 } from "@/lib/actions/profile";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import PhotoUpload  from "@/components/PhotoUpload";
-import {PaymentElement, useElements, useStripe} from "@stripe/react-stripe-js";
-import { Elements } from "@stripe/react-stripe-js";
-import { loadStripe } from "@stripe/stripe-js";
-
-
+import { createSetupIntent } from "@/lib/actions/payments";
+import PhotoUpload from "@/components/PhotoUpload";
+import PaymentMethodForm from "@/components/PaymentMethodForm";
+import Navbar from "@/components/Navbar";
 
 export default function EditProfilePage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const router = useRouter();
+    const [saved, setSaved] = useState(false);
     const [clientSecret, setClientSecret] = useState("");
-    const stripe = useStripe();
-    const elements = useElements();
-
-    const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
-
+    const router = useRouter();
 
     const [formData, setFormData] = useState({
         full_name: "",
@@ -35,9 +29,14 @@ export default function EditProfilePage() {
     });
 
     useEffect(() => {
+        let active = true;
+
         async function loadProfile() {
             try {
                 const profileData = await getCurrentUserProfile();
+
+                if (!active) return;
+
                 if (profileData) {
                     setFormData({
                         full_name: profileData.full_name || "",
@@ -47,78 +46,47 @@ export default function EditProfilePage() {
                         birthdate: profileData.birthdate || "",
                         avatar_url: profileData.avatar_url || "",
                     });
-
-                    const stripeId = profileData.stripe_id
-
-                    if (!stripeId) {
-
-                        try {
-                            const stripesetup = await fetch("/api/create-customer-intent", {
-                                method: "POST",
-                                headers: {"Content-Type": "application/json"},
-                                body: JSON.stringify({email: profileData.email}),
-
-                            })
-
-                            const data = await stripesetup.json();
-
-                            setClientSecret(data.clientSecret);
-                        } catch (err) {
-                            console.error("failed to create stripe customer");
-
-                        }
-                    }
-                    const setupRes = await fetch("/api/create-setup-intent", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ customerId: stripeId }),
-                    });
-                    const setupData = await setupRes.json();
-                    setClientSecret(setupData.clientSecret);
                 }
-
-            }catch {
-                setError("Failed to load profile");
+            } catch {
+                if (active) setError("Failed to load profile");
+            } finally {
+                if (active) setLoading(false);
             }
-            finally {
-                setLoading(false);
+        }
+
+        async function loadPaymentSetup() {
+            try {
+                const { clientSecret: secret } = await createSetupIntent();
+                if (active) setClientSecret(secret);
+            } catch (err) {
+                console.error("Failed to prepare payment form:", err);
             }
         }
 
         loadProfile();
+        loadPaymentSetup();
 
+        return () => {
+            active = false;
+        };
     }, []);
 
     async function handleFormSubmit(e: React.FormEvent) {
         e.preventDefault();
         setSaving(true);
         setError(null);
+        setSaved(false);
 
         try {
             const result = await updateUserProfile(formData);
-            if(!result.success){
 
+            if (!result.success) {
                 setError(result.error || "Failed to update profile.");
-                setSaving(false);
                 return;
-
             }
 
-            if (stripe && elements && clientSecret) {
-                const {error} = await stripe.confirmSetup({
-                    elements,
-                    redirect: "if_required",
-                });
-
-                if (error) {
-                    console.error("Error confirming card:", error);
-                    setError(error.message || "Failed to save card.");
-                    setSaving(false);
-                    return;
-                }
-            }
-
-
+            setSaved(true);
+            router.refresh();
         } catch {
             setError("Failed to update profile.");
         } finally {
@@ -132,17 +100,13 @@ export default function EditProfilePage() {
         >
     ) {
         const { name, value } = e.target;
-        setFormData((prev) => ({
-            ...prev,
-            [name]: value,
-        }));
+        setFormData((prev) => ({ ...prev, [name]: value }));
     }
-
-    // --- Inline Styles ---
 
     const labelStyle: React.CSSProperties = {
         fontWeight: 500,
         marginBottom: "0.25rem",
+        display: "block",
     };
 
     const inputStyle: React.CSSProperties = {
@@ -161,17 +125,28 @@ export default function EditProfilePage() {
         cursor: "pointer",
     });
 
-
     const radioContainerStyle: React.CSSProperties = {
         display: "flex",
         gap: "1rem",
         flexWrap: "nowrap",
-        alignItems:"center"
+        alignItems: "center",
     };
 
-    return (
+    if (loading) {
+        return (
+            <div className="min-h-full flex flex-col bg-gradient-to-br from-pink-50 to-red-50 dark:from-gray-900 dark:to-gray-800">
+                <Navbar />
+                <div className="flex-1 flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500" />
+                </div>
+            </div>
+        );
+    }
 
-        <div className="min-h-screen bg-gradient-to-br from-pink-50 to-red-50 dark:from-gray-900 dark:to-gray-800">
+    return (
+        <div className="min-h-full flex flex-col bg-gradient-to-br from-pink-50 to-red-50 dark:from-gray-900 dark:to-gray-800">
+            <Navbar />
+
             <div className="container mx-auto px-4 py-8">
                 <header className="text-center mb-8">
                     <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
@@ -182,18 +157,19 @@ export default function EditProfilePage() {
                     </p>
                 </header>
 
-                <div className="max-w-2xl mx-auto">
+                <div className="max-w-2xl mx-auto space-y-8">
                     <form
                         className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8"
                         onSubmit={handleFormSubmit}
                     >
                         <div className="mb-8">
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
+                            <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
                                 Profile Picture
-                            </label>
+                            </span>
                             <div className="flex items-center space-x-6">
-                                <div className="relative">
+                                <div className="relative w-24 h-24">
                                     <div className="w-24 h-24 rounded-full overflow-hidden">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
                                         <img
                                             src={formData.avatar_url || "/default-avatar.png"}
                                             alt="Profile"
@@ -201,12 +177,12 @@ export default function EditProfilePage() {
                                         />
                                     </div>
                                     <PhotoUpload
-                                        onPhotoUploaded={(url) => {
+                                        onPhotoUploaded={(url) =>
                                             setFormData((prev) => ({
                                                 ...prev,
                                                 avatar_url: url,
-                                            }));
-                                        }}
+                                            }))
+                                        }
                                     />
                                 </div>
 
@@ -263,10 +239,13 @@ export default function EditProfilePage() {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                             <div>
-                                <label style={labelStyle}>Gender</label>
+                                <span style={labelStyle}>Gender</span>
                                 <div style={radioContainerStyle}>
-                                    {["male", "female", "other"].map((g) => (
-                                        <label key={g} style={radioLabelStyle(formData.gender === g)}>
+                                    {(["male", "female", "other"] as const).map((g) => (
+                                        <label
+                                            key={g}
+                                            style={radioLabelStyle(formData.gender === g)}
+                                        >
                                             <input
                                                 type="radio"
                                                 name="gender"
@@ -295,7 +274,6 @@ export default function EditProfilePage() {
                                     style={inputStyle}
                                 />
                             </div>
-
                         </div>
 
                         <div className="mb-8">
@@ -327,6 +305,12 @@ export default function EditProfilePage() {
                             </div>
                         )}
 
+                        {saved && (
+                            <div className="mb-6 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg">
+                                Profile saved.
+                            </div>
+                        )}
+
                         <div className="flex items-center justify-between pt-6 border-t border-gray-200 dark:border-gray-700">
                             <button
                                 type="button"
@@ -343,10 +327,17 @@ export default function EditProfilePage() {
                                 {saving ? "Saving..." : "Save Changes"}
                             </button>
                         </div>
-                        <Elements stripe={stripePromise} options={{ clientSecret }}>
-                            {<PaymentElement /> }
-                        </Elements>
                     </form>
+
+                    <section className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8">
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                            Payment method
+                        </h2>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                            Save a card so you can place bets.
+                        </p>
+                        <PaymentMethodForm clientSecret={clientSecret} />
+                    </section>
                 </div>
             </div>
         </div>

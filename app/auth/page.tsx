@@ -1,70 +1,76 @@
 "use client";
 
-import {useEffect, useState} from "react";
-import {createClient} from "@/lib/supabase/client";
-import {useAuth} from "@/context/auth-context";
-import {router} from "next/client";
-import {useRouter} from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/context/auth-context";
 
-export default function AuthPage() {
+function AuthForm() {
     const [isSignup, setIsSignup] = useState<boolean>(false);
     const [email, setEmail] = useState<string>("");
     const [password, setPassword] = useState<string>("");
-    const [confirmpassword, setconfirmPassword] = useState<string>("");
+    const [confirmPassword, setConfirmPassword] = useState<string>("");
+    const [notice, setNotice] = useState<string>("");
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string>("");
 
-    const supabase = createClient();
-    const {user, loading:authLoading} = useAuth();
+    const [supabase] = useState(() => createClient());
+    const { user, loading: authLoading } = useAuth();
     const router = useRouter();
-    useEffect(()=>{
-        if(user && !authLoading){
-            router.push("/");
+    const searchParams = useSearchParams();
+    const nextPath = searchParams.get("next") ?? "/bets/personalized";
+
+    useEffect(() => {
+        if (user && !authLoading) {
+            router.replace(nextPath);
         }
-    }, [user, authLoading, router]);
+    }, [user, authLoading, router, nextPath]);
 
     async function handleAuth(e: React.FormEvent) {
         e.preventDefault();
 
         setLoading(true);
-        setError("")
+        setError("");
+        setNotice("");
 
-        try{
-            if(isSignup){
-
-                if (password !== confirmpassword) {
+        try {
+            if (isSignup) {
+                if (password !== confirmPassword) {
                     setError("Passwords do not match");
-                    setLoading(false);
                     return;
                 }
 
-                const {data, error} = await supabase.auth.signUp({email, password});
+                const { data, error: signUpError } = await supabase.auth.signUp({
+                    email,
+                    password,
+                });
 
-                if (error) throw error;
+                if (signUpError) throw signUpError;
 
-                if (data.user && !data.session){
-                    setError("Please confirm email");
+                if (data.user && !data.session) {
+                    setNotice("Check your inbox to confirm your email address.");
                     return;
                 }
 
-                router.push("/profile/edit");
-
-
+                router.replace("/profile/edit");
+                router.refresh();
+                return;
             }
-            else{
-                const {error} = await supabase.auth.signInWithPassword({email, password})
-                if (error) throw error;
 
+            const { error: signInError } = await supabase.auth.signInWithPassword({
+                email,
+                password,
+            });
 
+            if (signInError) throw signInError;
 
-                router.push("/bets");
-            }
-        }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        catch (err: any) {
-            setError(err.message);
-        }
-        finally{
+            router.replace(nextPath);
+            router.refresh();
+        } catch (err) {
+            setError(
+                err instanceof Error ? err.message : "Something went wrong."
+            );
+        } finally {
             setLoading(false);
         }
     }
@@ -80,6 +86,7 @@ export default function AuthPage() {
                         {isSignup ? "Create your account" : "Sign in to your account"}
                     </p>
                 </div>
+
                 <form className="space-y-6" onSubmit={handleAuth}>
                     <div>
                         <label
@@ -91,6 +98,7 @@ export default function AuthPage() {
                         <input
                             id="email"
                             type="email"
+                            autoComplete="email"
                             required
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
@@ -109,41 +117,63 @@ export default function AuthPage() {
                         <input
                             id="password"
                             type="password"
+                            autoComplete={isSignup ? "new-password" : "current-password"}
                             required
+                            minLength={8}
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-pink-500 focus:border-pink-500 dark:bg-gray-800 dark:text-white"
                             placeholder="Enter your password"
                         />
                     </div>
+
                     {isSignup && (
                         <div>
-                            <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            <label
+                                htmlFor="confirm-password"
+                                className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+                            >
                                 Confirm Password
                             </label>
                             <input
                                 id="confirm-password"
                                 type="password"
+                                autoComplete="new-password"
                                 required
-                                value={confirmpassword}
-                                onChange={(e) => setconfirmPassword(e.target.value)}
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
                                 className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-pink-500 focus:border-pink-500 dark:bg-gray-800 dark:text-white"
                                 placeholder="Confirm your password"
                             />
                         </div>
                     )}
+
                     {error && (
-                        <div className="text-red-600 dark:text-red-400 text-sm">
-                            {error}
-                        </div>)
-                    }
-                    <button type="submit" disabled={loading} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 disabled:opacity-50">
-                        {loading ? "Loading ..." : isSignup ? "Sign up" : "Login"}
+                        <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
+                    )}
+
+                    {notice && (
+                        <p className="text-green-700 dark:text-green-400 text-sm">
+                            {notice}
+                        </p>
+                    )}
+
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 disabled:opacity-50"
+                    >
+                        {loading ? "Loading…" : isSignup ? "Sign up" : "Login"}
                     </button>
                 </form>
+
                 <div className="text-center">
                     <button
-                        onClick={() => setIsSignup(!isSignup)}
+                        onClick={() => {
+                            setIsSignup(!isSignup);
+                            setError("");
+                            setNotice("");
+                        }}
                         className="text-pink-600 dark:text-pink-400 hover:text-pink-500 dark:hover:text-pink-300 text-sm"
                     >
                         {isSignup
@@ -153,5 +183,13 @@ export default function AuthPage() {
                 </div>
             </div>
         </div>
+    );
+}
+
+export default function AuthPage() {
+    return (
+        <Suspense fallback={null}>
+            <AuthForm />
+        </Suspense>
     );
 }

@@ -1,106 +1,119 @@
+"use client";
 
-import {useEffect, useState} from "react";
-import {useStripe, useElements, PaymentElement} from "@stripe/react-stripe-js";
+import { useState } from "react";
+import { toMultiplier } from "@/lib/odds";
+
+const MIN_STAKE = 1;
+const MAX_STAKE = 500;
 
 type BetModalProps = {
     team: string;
     odds: number;
-    onClose: () => void;       // a function that returns nothing
-    onConfirm: (amount:number) => void;     // same here, adjust if it takes arguments
+    onClose: () => void;
+    onConfirm: (amount: number) => Promise<{ success: boolean; error?: string }>;
 };
 
-export default function BetModal({ team, odds, onClose, onConfirm }:BetModalProps ) {
+export default function BetModal({
+    team,
+    odds,
+    onClose,
+    onConfirm,
+}: BetModalProps) {
     const [amount, setAmount] = useState<string>("");
-    const [clientSecre, setClientSecret] = useState("");
-    const stripe = useStripe();
-    const elements = useElements();
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    if (odds > 0){
-        odds = 1 + odds/100;
-    }
-    else if (odds < 0){
-        odds = 1 + 100 / Math.abs(odds);
-    }
+    const multiplier = toMultiplier(odds);
 
-    odds = Math.floor(odds * 100) / 100;
+    const stake = Number.parseFloat(amount);
+    const stakeIsValid =
+        Number.isFinite(stake) && stake >= MIN_STAKE && stake <= MAX_STAKE;
+    const payout = stakeIsValid ? (stake * multiplier).toFixed(2) : "0.00";
 
+    const handleSubmit = async () => {
+        if (!stakeIsValid || submitting) {
+            return;
+        }
 
-    const numericAmount = parseFloat(amount);
-    const estimated =
-        !isNaN(numericAmount)
-            ? (numericAmount * odds).toFixed(2)
-            : "0.00";
+        setSubmitting(true);
+        setError(null);
 
+        try {
+            const result = await onConfirm(stake);
 
-    useEffect(() => {
-        fetch("/api/create-payment-intent", {
-            method: "POST",
-            headers:{
-                "Content-Type": "application/json",
-            }, body: JSON.stringify({amount}),
-        }).then((res)=>res.json())
-            .then((data)=>setClientSecret(data.clientSecret));
-    },[amount]);
-
-    const handleClick = async (event: React.MouseEvent<HTMLButtonElement>) => {
-        event.preventDefault();
-
-        if (!stripe || !elements) return;
-
-        onConfirm(parseFloat(amount) || 0);
-
-
-
+            if (!result.success) {
+                setError(result.error ?? "Couldn't place that bet.");
+            }
+        } catch (err) {
+            console.error(err);
+            setError("Something went wrong. Please try again.");
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     return (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+        <div
+            className="fixed inset-0 flex items-center justify-center bg-black/50 z-50"
+            role="dialog"
+            aria-modal="true"
+        >
             <div className="bg-white rounded-xl shadow-xl w-80 p-4">
-
-                {/* Header */}
                 <div className="flex justify-between items-center mb-2">
-                    <p className="text-sm font-semibold text-gray-700">
-                        Predicting:
-                    </p>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                    <p className="text-sm font-semibold text-gray-700">Predicting:</p>
+                    <button
+                        onClick={onClose}
+                        disabled={submitting}
+                        className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                        aria-label="Close"
+                    >
                         ✕
                     </button>
                 </div>
 
-                {/* Team */}
                 <h2 className="text-lg font-bold text-gray-900 text-center mb-3">
                     {team}
                 </h2>
 
                 <div className="flex items-center border rounded-lg overflow-hidden mb-3">
                     <span className="px-3 bg-gray-100 text-gray-600 font-semibold">
-                        %
+                        $
                     </span>
                     <input
                         type="number"
                         inputMode="decimal"
+                        min={MIN_STAKE}
+                        max={MAX_STAKE}
+                        step="0.01"
                         value={amount}
                         onChange={(e) => setAmount(e.target.value)}
-                        className="w-full px-3 py-2 outline-none"
+                        className="w-full px-3 py-2 outline-none text-gray-900"
+                        placeholder="Stake"
                     />
                     <span className="px-3 text-green-600 font-semibold">
-                        ×{odds}
+                        ×{multiplier}
                     </span>
                 </div>
 
-
-                <p className="font-semibold text-gray-800 mb-4">
-                    Payout: <span className="text-green-600">${estimated}</span>
+                <p className="font-semibold text-gray-800 mb-2">
+                    Payout: <span className="text-green-600">${payout}</span>
                 </p>
 
-                {/* Button */}
-                <button
-                    onClick={handleClick}
-                    className="w-full py-3 rounded-lg bg-green-500 hover:bg-green-600 text-white font-bold transition"
-                >
-                    Place Bet
-                </button>
+                {amount !== "" && !stakeIsValid && (
+                    <p className="text-sm text-red-600 mb-2">
+                        Enter a stake between ${MIN_STAKE} and ${MAX_STAKE}.
+                    </p>
+                )}
 
+                {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
+
+                <button
+                    onClick={handleSubmit}
+                    disabled={!stakeIsValid || submitting}
+                    className="w-full py-3 rounded-lg bg-green-500 hover:bg-green-600 text-white font-bold transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {submitting ? "Placing bet…" : "Place Bet"}
+                </button>
             </div>
         </div>
     );

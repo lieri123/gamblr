@@ -1,9 +1,18 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase/service";
+import { timingSafeEqual } from "node:crypto";
+import { getSupabaseAdmin } from "@/lib/supabase/service";
+import { requireEnv } from "@/lib/env";
 
-type Outcome = {name: string; price: number};
-type Market = {key: string; last_update: string; outcomes: Outcome[]};
-type Bookmaker = {key: string; title: string; last_update: string; markets: Market[]};
+export const dynamic = "force-dynamic";
+
+type Outcome = { name: string; price: number };
+type Market = { key: string; last_update: string; outcomes: Outcome[] };
+type Bookmaker = {
+    key: string;
+    title: string;
+    last_update: string;
+    markets: Market[];
+};
 type Bet = {
     id: string;
     sport_key: string;
@@ -14,26 +23,38 @@ type Bet = {
     bookmakers: Bookmaker[];
 };
 
+function secretsMatch(provided: string | null, expected: string): boolean {
+    if (!provided) {
+        return false;
+    }
 
+    const a = Buffer.from(provided);
+    const b = Buffer.from(expected);
+
+    return a.length === b.length && timingSafeEqual(a, b);
+}
 
 async function fetchBets(): Promise<Bet[]> {
-    const res = await fetch(process.env.API_URL!);
-    if (!res.ok) throw new Error("Failed to fetch bets");
+    const res = await fetch(requireEnv("ODDS_API_URL"), { cache: "no-store" });
+
+    if (!res.ok) {
+        throw new Error(`Odds API responded ${res.status}`);
+    }
+
     return res.json();
 }
 
 export async function GET(req: Request) {
-    const secret = req.headers.get("x-sync-secret");
-    if (secret !== process.env.SUPABASE_SECRET_KEY) {
+    if (!secretsMatch(req.headers.get("x-sync-secret"), requireEnv("SYNC_SECRET"))) {
         return new Response("Unauthorized", { status: 401 });
     }
 
-    try {
+    const supabase = getSupabaseAdmin();
 
+    try {
         const bets = await fetchBets();
 
         for (const bet of bets) {
-
             const { error: betErr } = await supabase.from("bets").upsert({
                 id: bet.id,
                 sport_key: bet.sport_key,
@@ -48,9 +69,32 @@ export async function GET(req: Request) {
             const bookmaker = bet.bookmakers?.[0];
             if (!bookmaker) continue;
 
-            for (const market of bookmaker.markets ?? []) {
+            const { data: staleMarkets, error: staleErr } = await supabase
+                .from("markets")
+                .select("id")
+                .eq("bet_id", bet.id);
 
-                // 4️⃣ INSERT MARKET + RETURN ID
+            if (staleErr) throw staleErr;
+
+            const staleIds = (staleMarkets ?? []).map((m) => m.id);
+
+            if (staleIds.length > 0) {
+                const { error: outcomeDeleteErr } = await supabase
+                    .from("outcomes")
+                    .delete()
+                    .in("market_id", staleIds);
+
+                if (outcomeDeleteErr) throw outcomeDeleteErr;
+
+                const { error: marketDeleteErr } = await supabase
+                    .from("markets")
+                    .delete()
+                    .in("id", staleIds);
+
+                if (marketDeleteErr) throw marketDeleteErr;
+            }
+
+            for (const market of bookmaker.markets ?? []) {
                 const { data: marketData, error: marketErr } = await supabase
                     .from("markets")
                     .insert({
@@ -64,10 +108,8 @@ export async function GET(req: Request) {
                 if (marketErr) throw marketErr;
                 if (!marketData) continue;
 
-                const marketId = marketData.id;
-
-                const outcomes = (market.outcomes ?? []).map(o => ({
-                    market_id: marketId,
+                const outcomes = (market.outcomes ?? []).map((o) => ({
+                    market_id: marketData.id,
                     name: o.name,
                     value: o.price,
                 }));
@@ -82,16 +124,15 @@ export async function GET(req: Request) {
             }
         }
 
-        return NextResponse.json({ success: true });
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    catch (err: any) {
-        console.error("ERROR:", err);
-        console.error("MESSAGE:", err?.message);
-        console.error("DETAILS:", err?.cause ?? err?.error ?? err?.details);
+        return NextResponse.json({ success: true, synced: bets.length });
+    } catch (err) {
+        console.error("Sync failed:", err);
 
         return NextResponse.json(
-            { success: false, error: err?.message ?? "Unknown error" },
+            {
+                success: false,
+                error: err instanceof Error ? err.message : "Unknown error",
+            },
             { status: 500 }
         );
     }

@@ -2,25 +2,32 @@ interface MatchButtonsProps {
     onRight: () => void;
     onLeft: () => void;
     onPass: () => void;
+    disableRight?: boolean;
+    disableLeft?: boolean;
 }
 
-export default function MatchButtons({ onRight, onLeft, onPass }: MatchButtonsProps) {
+export default function MatchButtons({
+    onRight,
+    onLeft,
+    onPass,
+    disableRight = false,
+    disableLeft = false,
+}: MatchButtonsProps) {
     return (
         <div className="flex items-center justify-center gap-8">
             <button
                 onClick={onLeft}
-                className="w-16 h-16 bg-white dark:bg-gray-800 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center border-2 border-gray-300 dark:border-gray-600 hover:border-red-500 dark:hover:border-red-500"
-                aria-label="Pass"
+                disabled={disableLeft}
+                className="w-16 h-16 bg-white dark:bg-gray-800 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center border-2 border-gray-300 dark:border-gray-600 hover:border-red-500 dark:hover:border-red-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                aria-label="Bet on the away team"
             >
-                <span className="text-red-500 font-semibold">
-                    Away
-                </span>
+                <span className="text-red-500 font-semibold">Away</span>
             </button>
 
             <button
                 onClick={onPass}
                 className="w-16 h-16 bg-white dark:bg-gray-800 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center border-2 border-gray-300 dark:border-gray-600 hover:border-gray-500"
-                aria-label="Pass"
+                aria-label="Skip this game"
             >
                 <svg
                     className="w-8 h-8 text-gray-400"
@@ -35,15 +42,13 @@ export default function MatchButtons({ onRight, onLeft, onPass }: MatchButtonsPr
                 </svg>
             </button>
 
-
             <button
                 onClick={onRight}
-                className="w-16 h-16 bg-white dark:bg-gray-800 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center border-2 border-gray-300 dark:border-gray-600 hover:border-green-500 dark:hover:border-green-500"
-                aria-label="Like"
+                disabled={disableRight}
+                className="w-16 h-16 bg-white dark:bg-gray-800 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center border-2 border-gray-300 dark:border-gray-600 hover:border-green-500 dark:hover:border-green-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                aria-label="Bet on the home team"
             >
-                <span className="text-green-500 font-semibold text-lg">
-                  Home
-                </span>
+                <span className="text-green-500 font-semibold text-lg">Home</span>
             </button>
         </div>
     );

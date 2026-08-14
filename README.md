@@ -1,36 +1,73 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Gamblr
 
-## Getting Started
+A swipe-style sports betting app built with Next.js (App Router), Supabase, and
+Stripe. Swipe right to back the home team, left for the away team, up to skip.
 
-First, run the development server:
+## Getting started
 
 ```bash
+npm install
+cp .env.example .env.local   # then fill in the values
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Every variable in `.env.example` is required. `SUPABASE_SECRET_KEY`,
+`STRIPE_SECRET_KEY`, `ODDS_API_URL`, and `SYNC_SECRET` are server-only — never
+prefix them with `NEXT_PUBLIC_`.
 
-## Learn More
+## Data model
 
-To learn more about Next.js, take a look at the following resources:
+| Table         | Notes                                                                   |
+| ------------- | ----------------------------------------------------------------------- |
+| `users`       | One row per auth user. `preferences` is a `text[]` of `sport_title`s, `stripe_id` is the Stripe customer. |
+| `bets`        | One row per upcoming game, keyed by the odds provider's event id.        |
+| `markets`     | One row per market (`h2h`, `spreads`, …) per bet.                        |
+| `outcomes`    | One row per priced outcome; `name` matches a team name, `value` is American odds. |
+| `predictions` | A user's bet: `from_user_id`, `bet_id`, `predicted`, `amount`.           |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Recommended constraints (not enforced by the app):
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```sql
+alter table predictions
+  add constraint predictions_user_bet_unique unique (from_user_id, bet_id);
 
-## Deploy on Vercel
+alter table outcomes
+  add constraint outcomes_market_fk
+  foreign key (market_id) references markets(id) on delete cascade;
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Syncing odds
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`GET /api/sync` pulls the odds feed and replaces each game's markets and
+outcomes. It requires an `x-sync-secret` header matching `SYNC_SECRET`:
+
+```bash
+curl -H "x-sync-secret: $SYNC_SECRET" https://your-app.vercel.app/api/sync
+```
+
+Run it on a schedule (Vercel Cron, GitHub Actions, Supabase pg_cron, …).
+
+## Architecture notes
+
+- `proxy.ts` refreshes the Supabase session on every request and gates
+  `/bets` and `/profile` behind auth. Without it, server actions see expired
+  cookies and every fetch fails with "Not authenticated."
+- `lib/supabase/server.ts` is the only place that identifies the caller.
+  `lib/supabase/service.ts` is the service-role client; it has no session, so
+  `auth.getUser()` on it always returns null.
+- Placing a bet is a single server action (`placeBet`) that validates the stake,
+  charges the saved card, and inserts the prediction — refunding if the insert
+  fails.
+
+## Scripts
+
+```bash
+npm run dev        # dev server
+npm run build      # production build
+npm run typecheck  # tsc --noEmit
+npm run lint       # eslint
+```
