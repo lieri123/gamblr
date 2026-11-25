@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { requireUser } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase/service";
 import { getStripe } from "@/lib/stripe";
-import { fetchOpenBets } from "@/lib/bets/queries";
+import { fetchMoneylineOdds, fetchOpenBets } from "@/lib/bets/queries";
 import type { BetProfile } from "@/lib/types/bet";
 
 const MIN_STAKE = 1;
@@ -116,6 +116,20 @@ export async function placeBet(
 
     if (new Date(bet.commence_time).getTime() <= Date.now()) {
         return { success: false, error: "This game has already started." };
+    }
+
+    // The UI disables betting when a game has no moneyline price, but this
+    // action can be called directly, so check here before charging.
+    let odds: number | null;
+
+    try {
+        odds = await fetchMoneylineOdds(supabase, betId, predicted);
+    } catch {
+        return { success: false, error: "Couldn't load odds for this game. Please try again." };
+    }
+
+    if (odds === null) {
+        return { success: false, error: "Odds aren't available for this game right now." };
     }
 
     const { data: existing } = await supabase

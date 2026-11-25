@@ -108,3 +108,46 @@ export async function fetchOpenBets(
         } satisfies BetProfile;
     });
 }
+
+/**
+ * Current moneyline (h2h) price for one team in one game, or null if the game
+ * has no h2h market or no price for that team.
+ */
+export async function fetchMoneylineOdds(
+    supabase: SupabaseClient,
+    betId: string,
+    team: string
+): Promise<number | null> {
+    const { data: market, error: marketError } = await supabase
+        .from("markets")
+        .select("id")
+        .eq("bet_id", betId)
+        .eq("market_key", "h2h")
+        .limit(1)
+        .maybeSingle();
+
+    if (marketError) {
+        console.error("Supabase error (h2h market):", marketError);
+        throw new Error("Failed to load odds.");
+    }
+
+    if (!market) {
+        return null;
+    }
+
+    const { data: outcome, error: outcomeError } = await supabase
+        .from("outcomes")
+        .select("value")
+        .eq("market_id", market.id)
+        .eq("name", team)
+        .limit(1)
+        .maybeSingle();
+
+    if (outcomeError) {
+        console.error("Supabase error (h2h outcome):", outcomeError);
+        throw new Error("Failed to load odds.");
+    }
+
+    const value = Number(outcome?.value);
+    return Number.isFinite(value) ? value : null;
+}
