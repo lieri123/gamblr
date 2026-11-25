@@ -53,6 +53,9 @@ export interface Charge {
 
 export class CardError extends Error {}
 
+/** Thrown by Store.insertPrediction when the user already has a bet on that game (unique constraint). */
+export class DuplicateBetError extends Error {}
+
 /**
  * Persistence + payments boundary. The service layer owns every business rule;
  * a store only reads and writes. Production uses Supabase + Stripe, evals use

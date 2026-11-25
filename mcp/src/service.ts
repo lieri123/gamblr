@@ -1,5 +1,6 @@
+import { randomUUID } from "node:crypto";
 import type { Game, Market, Store } from "./types.js";
-import { CardError } from "./types.js";
+import { CardError, DuplicateBetError } from "./types.js";
 
 // Same limits and payout math as lib/actions/betting.ts and components/BetModal.tsx.
 export const MIN_STAKE = 1;
@@ -193,7 +194,16 @@ export class GamblrService {
         return { count: bets.length, total_staked: total, bets };
     }
 
-    /** Mirrors placeBet() in lib/actions/betting.ts: validate, charge, insert, refund on failure. */
+    /**
+     * Mirrors placeBet() in lib/actions/betting.ts: validate, charge, insert, refund on failure.
+     *
+     * Two deliberate differences from the app:
+     *  - The Stripe idempotency key is unique per attempt. A key per (user, game) makes Stripe
+     *    replay a decline for 24h, so a user who fixes their card or changes the stake can't retry.
+     *  - The existing-bet check above is only a fast path. The real guard against two bets on one
+     *    game is the database unique constraint: if two attempts race past the check, the loser's
+     *    insert fails with DuplicateBetError and its charge is refunded.
+     */
     async placeBet(gameId: string, team: string, stake: number) {
         if (!Number.isFinite(stake) || stake < MIN_STAKE || stake > MAX_STAKE) {
             throw new ToolError("invalid_stake", `Stake must be between $${MIN_STAKE} and $${MAX_STAKE}.`);
@@ -224,7 +234,7 @@ export class GamblrService {
                 customer: user.stripe_id,
                 card,
                 amountCents: Math.round(amount * 100),
-                idempotencyKey: `bet:${this.userId}:${game.id}`,
+                idempotencyKey: `bet:${this.userId}:${game.id}:${randomUUID()}`,
                 metadata: { bet_id: game.id, user_id: this.userId, predicted: pick },
             }));
         } catch (e) {
@@ -240,8 +250,11 @@ export class GamblrService {
                 amount,
                 created_at: this.store.now().toISOString(),
             });
-        } catch {
+        } catch (e) {
             await this.store.refund(chargeId).catch(() => undefined);
+            if (e instanceof DuplicateBetError) {
+                throw new ToolError("duplicate_bet", "You've already bet on this game. This charge was refunded.");
+            }
             throw new ToolError("insert_failed", "Couldn't record your bet. You have not been charged.");
         }
 

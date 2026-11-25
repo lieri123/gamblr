@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Charge, Game, Prediction, Store, UserRecord } from "../types.js";
-import { CardError } from "../types.js";
+import { CardError, DuplicateBetError } from "../types.js";
 
 export interface World {
     now: string;
@@ -18,6 +18,8 @@ export interface World {
 export class MemoryStore implements Store {
     readonly world: World;
     readonly charges: Charge[] = [];
+    /** Every idempotency key Stripe has seen, with its first request and outcome. */
+    private keys = new Map<string, { amountCents: number; card: string; result: { id: string } | CardError }>();
 
     constructor(world: World) {
         this.world = structuredClone(world);
@@ -56,7 +58,7 @@ export class MemoryStore implements Store {
 
     async insertPrediction(p: Omit<Prediction, "id">): Promise<Prediction> {
         if (this.world.predictions.some((x) => x.from_user_id === p.from_user_id && x.bet_id === p.bet_id)) {
-            throw new Error("unique violation: predictions_user_bet_unique");
+            throw new DuplicateBetError("unique violation: predictions_user_bet_unique");
         }
         const row = { id: randomUUID(), ...p };
         this.world.predictions.push(row);
@@ -74,10 +76,21 @@ export class MemoryStore implements Store {
         idempotencyKey: string;
         metadata: Record<string, string>;
     }): Promise<{ id: string }> {
-        // Stripe idempotency: replaying a key returns the original charge.
-        const prior = this.charges.find((c) => c.idempotency_key === args.idempotencyKey);
-        if (prior) return { id: prior.id };
-        if (args.card.startsWith("card_declined")) throw new CardError("Your card was declined.");
+        // Like Stripe: a reused key replays the first outcome (declines included),
+        // and a reused key with different parameters is rejected.
+        const prior = this.keys.get(args.idempotencyKey);
+        if (prior) {
+            if (prior.amountCents !== args.amountCents || prior.card !== args.card) {
+                throw new Error("Keys for idempotent requests can only be used with the same parameters they were first used with.");
+            }
+            if (prior.result instanceof CardError) throw prior.result;
+            return prior.result;
+        }
+        if (args.card.startsWith("card_declined")) {
+            const err = new CardError("Your card was declined.");
+            this.keys.set(args.idempotencyKey, { amountCents: args.amountCents, card: args.card, result: err });
+            throw err;
+        }
         const id = `ch_${this.charges.length + 1}`;
         this.charges.push({
             id,
@@ -87,6 +100,7 @@ export class MemoryStore implements Store {
             idempotency_key: args.idempotencyKey,
             metadata: args.metadata,
         });
+        this.keys.set(args.idempotencyKey, { amountCents: args.amountCents, card: args.card, result: { id } });
         return { id };
     }
 

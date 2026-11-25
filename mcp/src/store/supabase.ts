@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import Stripe from "stripe";
 import type { Game, Market, Prediction, Store, UserRecord } from "../types.js";
-import { CardError } from "../types.js";
+import { CardError, DuplicateBetError } from "../types.js";
 
 function requireEnv(name: string): string {
     const v = process.env[name];
@@ -104,7 +104,9 @@ export class SupabaseStore implements Store {
     }
 
     async insertPrediction(p: Omit<Prediction, "id">): Promise<Prediction> {
+        // Requires the predictions_user_bet_unique constraint (see mcp/README.md).
         const { data, error } = await this.db.from("predictions").insert(p).select().single();
+        if (error?.code === "23505") throw new DuplicateBetError(error.message);
         if (error) throw error;
         return data;
     }

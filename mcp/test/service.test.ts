@@ -76,3 +76,32 @@ test("list_my_bets totals stakes", async () => {
     assert.equal(r.total_staked, 55);
     assert.equal(r.bets.find((b) => b.pick === "Miami Heat")?.potential_payout, 110);
 });
+
+test("after a decline, the user can fix their card and retry", async () => {
+    const { svc, store } = setup(DECLINED_USER);
+    await rejects(svc.placeBet("epl_ars_che", "Arsenal", 25), "card_declined");
+    store.world.cards.cus_riley = "card_visa_4242"; // user saves a working card
+    const r = await svc.placeBet("epl_ars_che", "Arsenal", 25);
+    assert.equal(r.status, "placed");
+});
+
+test("after a decline, the user can retry with a different stake", async () => {
+    const { svc, store } = setup(DECLINED_USER);
+    await rejects(svc.placeBet("epl_ars_che", "Arsenal", 25), "card_declined");
+    store.world.cards.cus_riley = "card_visa_4242";
+    const r = await svc.placeBet("epl_ars_che", "Arsenal", 10);
+    assert.equal(r.stake, 10);
+});
+
+test("two simultaneous bets on one game: one bet, one net charge", async () => {
+    const { svc, store } = setup();
+    const results = await Promise.allSettled([
+        svc.placeBet("nba_lal_bos", "Boston Celtics", 20),
+        svc.placeBet("nba_lal_bos", "Los Angeles Lakers", 30),
+    ]);
+    assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
+    const rejected = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
+    assert.equal((rejected.reason as ToolError).code, "duplicate_bet");
+    assert.equal(store.world.predictions.filter((p) => p.bet_id === "nba_lal_bos").length, 1);
+    assert.equal(store.charges.filter((c) => c.status === "succeeded").length, 1);
+});

@@ -20,7 +20,8 @@ the right bet, at the right stake, charge the card exactly once, and refuse what
 
 Business rules live in `src/service.ts` and match `lib/actions/betting.ts`: $1–$500 stakes,
 one bet per game, no bets on started games, charge first and refund if the insert fails,
-Stripe idempotency key per (user, game). Each tool error carries a machine-readable `code`
+Stripe idempotency key per attempt (so a declined bet can be retried), and the database's
+unique constraint as the final guard against two bets on one game. Each tool error carries a machine-readable `code`
 (`invalid_stake`, `game_started`, `duplicate_bet`, `card_declined`, …).
 
 The server runs on one of two backends:
@@ -28,7 +29,13 @@ The server runs on one of two backends:
 - **memory** (default): the frozen fixture slate in `src/store/fixtures.ts`, with a fake clock
   and a fake card processor. Used by tests and evals.
 - **supabase**: the app's real tables plus Stripe. It uses the service-role key, so run it only
-  locally, for one user (`GAMBLR_USER_ID`).
+  locally, for one user (`GAMBLR_USER_ID`). It **requires** the unique constraint below; without
+  it, two simultaneous `place_bet` calls on the same game can both succeed:
+
+  ```sql
+  alter table predictions
+    add constraint predictions_user_bet_unique unique (from_user_id, bet_id);
+  ```
 
 ```bash
 cd mcp && npm install
