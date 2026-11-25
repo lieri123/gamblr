@@ -63,6 +63,12 @@ Run it on a schedule (Vercel Cron, GitHub Actions, Supabase pg_cron, …).
   charges the saved card, and inserts the prediction — refunding if the insert
   fails.
 
+## MCP server and agent eval
+
+`mcp/` is a standalone package: an MCP server exposing Gamblr to AI agents, plus a
+33-task eval that measures how often an agent completes tasks correctly through it.
+See [`mcp/README.md`](mcp/README.md).
+
 ## Scripts
 
 ```bash

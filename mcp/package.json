@@ -1,0 +1,28 @@
+{
+  "name": "gamblr-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "test": "node --import tsx --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "eval": "tsx evals/run.ts",
+    "eval:oracle": "tsx evals/run.ts --agent oracle",
+    "eval:null": "tsx evals/run.ts --agent null",
+    "eval:compare": "tsx evals/compare.ts",
+    "eval:suite": "npm run eval -- --model claude-opus-5-5 && npm run eval -- --model claude-sonnet-5-5 && npm run eval -- --model claude-haiku-5-5 && npm run eval -- --model claude-opus-5-5 --ablate-docs && npm run eval:compare"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.14.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@supabase/supabase-js": "^2.89.0",
+    "stripe": "^20.1.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  }
+}
