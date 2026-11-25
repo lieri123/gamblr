@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { requireUser } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase/service";
 import { getStripe } from "@/lib/stripe";
-import { fetchOpenBets } from "@/lib/bets/queries";
+import { fetchMoneylineOdds, fetchOpenBets } from "@/lib/bets/queries";
 import type { BetProfile } from "@/lib/types/bet";
 
 const MIN_STAKE = 1;
@@ -118,6 +118,20 @@ export async function placeBet(
         return { success: false, error: "This game has already started." };
     }
 
+    // The UI disables betting when a game has no moneyline price, but this
+    // action can be called directly, so check here before charging.
+    let odds: number | null;
+
+    try {
+        odds = await fetchMoneylineOdds(supabase, betId, predicted);
+    } catch {
+        return { success: false, error: "Couldn't load odds for this game. Please try again." };
+    }
+
+    if (odds === null) {
+        return { success: false, error: "Odds aren't available for this game right now." };
+    }
+
     const { data: existing } = await supabase
         .from("predictions")
         .select("id")
@@ -176,8 +190,7 @@ export async function placeBet(
                 metadata: { bet_id: betId, user_id: user.id, predicted },
             },
 
-            // One key per attempt. A key per (user, bet) makes Stripe replay a
-            // decline for 24h and reject a retry with a different stake.
+            // One key per attempt.
             { idempotencyKey: `bet:${user.id}:${betId}:${randomUUID()}` }
         );
 
