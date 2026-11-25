@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { requireUser } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase/service";
 import { getStripe } from "@/lib/stripe";
@@ -175,7 +176,9 @@ export async function placeBet(
                 metadata: { bet_id: betId, user_id: user.id, predicted },
             },
 
-            { idempotencyKey: `bet:${user.id}:${betId}` }
+            // One key per attempt. A key per (user, bet) makes Stripe replay a
+            // decline for 24h and reject a retry with a different stake.
+            { idempotencyKey: `bet:${user.id}:${betId}:${randomUUID()}` }
         );
 
         paymentIntentId = paymentIntent.id;
@@ -201,6 +204,16 @@ export async function placeBet(
             await stripe.refunds.create({ payment_intent: paymentIntentId });
         } catch (refundError) {
             console.error("Stripe refund failed:", refundError);
+        }
+
+        // Unique violation: another request placed a bet on this game first.
+        // The existing-bet check above is only a fast path; the
+        // predictions_user_bet_unique constraint is the real guard.
+        if (insertError.code === "23505") {
+            return {
+                success: false,
+                error: "You've already bet on this game. This charge was refunded.",
+            };
         }
 
         return { success: false, error: "Couldn't record your bet. You have not been charged." };

@@ -29,12 +29,17 @@ prefix them with `NEXT_PUBLIC_`.
 | `outcomes`    | One row per priced outcome; `name` matches a team name, `value` is American odds. |
 | `predictions` | A user's bet: `from_user_id`, `bet_id`, `predicted`, `amount`.           |
 
-Recommended constraints (not enforced by the app):
+**Required.** `placeBet` relies on this constraint to stop two simultaneous
+requests from both placing a bet on the same game:
 
 ```sql
 alter table predictions
   add constraint predictions_user_bet_unique unique (from_user_id, bet_id);
+```
 
+Recommended:
+
+```sql
 alter table outcomes
   add constraint outcomes_market_fk
   foreign key (market_id) references markets(id) on delete cascade;
