@@ -7,8 +7,7 @@ import { useAuth } from "@/context/auth-context";
 
 const DEFAULT_NEXT = "/bets/personalized";
 
-// Only follow same-site paths. "https://evil.com", "//evil.com" and "/\\evil.com"
-// would otherwise send the user to another site after they log in.
+// Only follow same-site paths.
 function safeNextPath(next: string | null): string {
     if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) {
         return DEFAULT_NEXT;
