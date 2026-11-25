@@ -5,6 +5,16 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/context/auth-context";
 
+const DEFAULT_NEXT = "/bets/personalized";
+
+// Only follow same-site paths.
+function safeNextPath(next: string | null): string {
+    if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) {
+        return DEFAULT_NEXT;
+    }
+    return next;
+}
+
 function AuthForm() {
     const [isSignup, setIsSignup] = useState<boolean>(false);
     const [email, setEmail] = useState<string>("");
@@ -18,7 +28,7 @@ function AuthForm() {
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
-    const nextPath = searchParams.get("next") ?? "/bets/personalized";
+    const nextPath = safeNextPath(searchParams.get("next"));
 
     useEffect(() => {
         if (user && !authLoading) {

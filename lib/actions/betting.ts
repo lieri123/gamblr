@@ -1,9 +1,10 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { requireUser } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase/service";
 import { getStripe } from "@/lib/stripe";
-import { fetchOpenBets } from "@/lib/bets/queries";
+import { fetchMoneylineOdds, fetchOpenBets } from "@/lib/bets/queries";
 import type { BetProfile } from "@/lib/types/bet";
 
 const MIN_STAKE = 1;
@@ -117,6 +118,20 @@ export async function placeBet(
         return { success: false, error: "This game has already started." };
     }
 
+    // The UI disables betting when a game has no moneyline price, but this
+    // action can be called directly, so check here before charging.
+    let odds: number | null;
+
+    try {
+        odds = await fetchMoneylineOdds(supabase, betId, predicted);
+    } catch {
+        return { success: false, error: "Couldn't load odds for this game. Please try again." };
+    }
+
+    if (odds === null) {
+        return { success: false, error: "Odds aren't available for this game right now." };
+    }
+
     const { data: existing } = await supabase
         .from("predictions")
         .select("id")
@@ -175,7 +190,8 @@ export async function placeBet(
                 metadata: { bet_id: betId, user_id: user.id, predicted },
             },
 
-            { idempotencyKey: `bet:${user.id}:${betId}` }
+            // One key per attempt.
+            { idempotencyKey: `bet:${user.id}:${betId}:${randomUUID()}` }
         );
 
         paymentIntentId = paymentIntent.id;
@@ -201,6 +217,16 @@ export async function placeBet(
             await stripe.refunds.create({ payment_intent: paymentIntentId });
         } catch (refundError) {
             console.error("Stripe refund failed:", refundError);
+        }
+
+        // Unique violation: another request placed a bet on this game first.
+        // The existing-bet check above is only a fast path; the
+        // predictions_user_bet_unique constraint is the real guard.
+        if (insertError.code === "23505") {
+            return {
+                success: false,
+                error: "You've already bet on this game. This charge was refunded.",
+            };
         }
 
         return { success: false, error: "Couldn't record your bet. You have not been charged." };
