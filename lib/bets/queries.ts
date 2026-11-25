@@ -79,9 +79,12 @@ export async function fetchOpenBets(
     }
 
     return bets.map((bet) => {
-        const betMarkets = (markets ?? []).filter((m) => m.bet_id === bet.id);
-        const market =
-            betMarkets.find((m) => m.market_key === "h2h") ?? betMarkets[0];
+        // Only the moneyline (h2h) market prices a straight win. Falling back to
+        // another market would show e.g. a spread price (-110) as win odds.
+        // With no h2h market both odds are null and the bet buttons disable.
+        const market = (markets ?? []).find(
+            (m) => m.bet_id === bet.id && m.market_key === "h2h"
+        );
 
         const marketOutcomes = (outcomes ?? []).filter(
             (outcome) => market !== undefined && outcome.market_id === market.id
