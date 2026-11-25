@@ -78,10 +78,9 @@ export async function fetchOpenBets(
         throw new Error("Failed to load odds.");
     }
 
-    return bets.map((bet) => {
+    const priced = bets.map((bet) => {
         // Only the moneyline (h2h) market prices a straight win. Falling back to
         // another market would show e.g. a spread price (-110) as win odds.
-        // With no h2h market both odds are null and the bet buttons disable.
         const market = (markets ?? []).find(
             (m) => m.bet_id === bet.id && m.market_key === "h2h"
         );
@@ -107,6 +106,9 @@ export async function fetchOpenBets(
             away_odd: priceFor(bet.away_team),
         } satisfies BetProfile;
     });
+
+    // Only serve games that can be bet on: both teams need a moneyline price.
+    return priced.filter((bet) => bet.home_odd !== null && bet.away_odd !== null);
 }
 
 /**
