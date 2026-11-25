@@ -176,8 +176,7 @@ export async function placeBet(
                 metadata: { bet_id: betId, user_id: user.id, predicted },
             },
 
-            // One key per attempt. A key per (user, bet) makes Stripe replay a
-            // decline for 24h and reject a retry with a different stake.
+            // One key per attempt.
             { idempotencyKey: `bet:${user.id}:${betId}:${randomUUID()}` }
         );
 
